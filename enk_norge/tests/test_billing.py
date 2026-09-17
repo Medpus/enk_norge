@@ -4,6 +4,7 @@ import unittest
 from uuid import uuid4
 
 import frappe
+from frappe.utils import add_days, getdate, today
 
 from enk_norge.billing import BillingError, subscription_event_id, timesheet_event_id
 
@@ -196,7 +197,7 @@ class BillingWorkflowTest(unittest.TestCase):
 		self.assertEqual(timesheet.status, "Billed")
 		self.assertEqual(timesheet.time_logs[0].sales_invoice, invoice.name)
 
-	def _subscription(self):
+	def _subscription(self, start_date="2026-10-01", end_date=None):
 		plan = frappe.get_doc(
 			{
 				"doctype": "Subscription Plan",
@@ -209,24 +210,67 @@ class BillingWorkflowTest(unittest.TestCase):
 				"currency": "NOK",
 			}
 		).insert()
+		start = getdate(start_date)
+		end = getdate(end_date) if end_date else add_days(start, 62)
 		return frappe.get_doc(
 			{
 				"doctype": "Subscription",
 				"party_type": "Customer",
 				"party": self.customer.name,
 				"company": self.company,
-				"start_date": "2026-10-01",
-				"end_date": "2026-11-01",
+				"start_date": start,
+				"end_date": end,
 				"submit_invoice": 0,
 				"generate_invoice_at": "Beginning of the current subscription period",
 				"plans": [{"plan": plan.name, "qty": 1}],
 			}
 		).insert()
 
+	def test_subscription_starting_today_waits_for_controlled_enk_draft(self):
+		from enk_norge.billing import create_subscription_invoice_draft
+
+		subscription = self._subscription(today())
+		self.assertTrue(subscription.current_invoice_start)
+		self.assertTrue(subscription.current_invoice_end)
+		self.assertFalse(frappe.db.exists("Sales Invoice", {"subscription": subscription.name}))
+		source = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "fiktiv-avtale-start-i-dag.txt",
+				"content": "Fiktiv avtale for test",
+				"is_private": 1,
+			}
+		).insert()
+		start = getdate(subscription.current_invoice_start)
+		end = getdate(subscription.current_invoice_end)
+		from enk_norge.billing import _advance_subscription_to_requested_period
+
+		subscription.status = "Cancelled"
+		with self.assertRaisesRegex(frappe.ValidationError, "avsluttet"):
+			_advance_subscription_to_requested_period(subscription, start, end)
+		result = create_subscription_invoice_draft(
+			{
+				"company": self.company,
+				"subscription": subscription.name,
+				"customer": self.customer.name,
+				"customer_address": self.address.name,
+				"posting_date": start.isoformat(),
+				"delivery_date": start.isoformat(),
+				"delivery_description": "Fiktiv abonnementstjeneste fra oppstartsdato",
+				"due_date": start.isoformat(),
+				"service_start_date": start.isoformat(),
+				"service_end_date": end.isoformat(),
+				"subscription_source_file": source.name,
+			}
+		)
+		invoice = frappe.get_doc("Sales Invoice", result["name"])
+		self.assertEqual(invoice.subscription, subscription.name)
+		self.assertEqual(invoice.docstatus, 0)
+
 	def test_subscription_draft_has_period_event_and_blocks_native_auto_submit(self):
 		from enk_norge.billing import create_subscription_invoice_draft
 
-		subscription = self._subscription()
+		subscription = self._subscription(end_date="2026-12-01")
 		source = frappe.get_doc(
 			{
 				"doctype": "File",
@@ -257,8 +301,6 @@ class BillingWorkflowTest(unittest.TestCase):
 		self.assertEqual(create_subscription_invoice_draft(data)["name"], invoice.name)
 		invoice.submit()
 		self.assertEqual(invoice.docstatus, 1)
-		subscription.db_set("current_invoice_start", "2026-11-01")
-		subscription.db_set("current_invoice_end", "2026-11-30")
 		next_source = frappe.get_doc(
 			{
 				"doctype": "File",

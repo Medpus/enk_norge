@@ -592,7 +592,7 @@ class EnkNorgePage {
 		const dialog = new frappe.ui.Dialog({
 			title: __("Fakturer abonnement"),
 			fields: [
-				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Bruk abonnementets aktive periode. Slå av «Submit Generated Invoices» på abonnementet før du lager ENK-utkast, og ikke bruk flyten hvis abonnementet allerede har en aktiv native faktura.")}</p>` },
+				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Bruk abonnementets aktive periode, eller neste direkte sammenhengende periode når den forrige er bokført. Slå av «Submit Generated Invoices». Flyten lager bare kladd, hopper aldri over en periode og avviser overlappende faktura.")}</p>` },
 				{ fieldname: "subscription", label: __("Abonnement"), fieldtype: "Link", options: "Subscription", reqd: 1 },
 				{ fieldname: "customer", label: __("Kunde"), fieldtype: "Link", options: "Customer", reqd: 1 },
 				{ fieldname: "customer_address", label: __("Fakturaadresse"), fieldtype: "Link", options: "Address", reqd: 1 },

@@ -54,10 +54,11 @@ For innsendte timer kan «Fakturer timer» lage ett utkast fra en Timesheet. Vel
 vare, fakturadato og leveringsbeskrivelse. Timesheet bestemmer satsen; endre den der før du lager
 utkast hvis prisen er feil. Samme Timesheet kan ikke gi et nytt ENK-utkast med endrede opplysninger.
 
-For et ERPNext-abonnement kan «Fakturer abonnement» lage ett utkast for den aktive perioden.
-Slå av «Submit Generated Invoices» i abonnementet først. Velg abonnementets kunde og adresse, bruk
-nøyaktig tjenestestart og -slutt fra den aktive perioden, og last opp avtalen som privat fil. Ikke
-bruk flyten når abonnementet allerede har en aktiv native faktura.
+For et ERPNext-abonnement kan «Fakturer abonnement» lage ett utkast for den aktive perioden. Etter
+at forrige periode er bokført, kan du også velge nøyaktig neste sammenhengende periode. Slå av
+«Submit Generated Invoices» i abonnementet først. Velg abonnementets kunde og adresse, bruk riktige
+tjenestedatoer og last opp avtalen som privat fil. Flyten lager bare kladd, hopper aldri over en
+periode og avviser en faktura som overlapper perioden.
 
 Ved feil på en bokført faktura kan «Lag kreditnota» lage et utkast som viser til originalen.
 Kontroller beløpet og bokfør kreditnotaen. En erstatningsfaktura skal ha eget nummer. For et

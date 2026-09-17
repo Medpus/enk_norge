@@ -7,7 +7,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from hashlib import sha256
 
 import frappe
-from frappe.utils import getdate, today
+from frappe.utils import add_days, getdate, today
 
 
 class BillingError(ValueError):
@@ -191,6 +191,38 @@ def _subscription_period_conflict(subscription, start, end):
 	return None
 
 
+def _advance_subscription_to_requested_period(subscription, start, end):
+	"""Flytter bare én ferdig, bokført ENK-periode frem med ERPNexts egen periodeberegning."""
+	current_start = getdate(subscription.current_invoice_start)
+	current_end = getdate(subscription.current_invoice_end)
+	if subscription.status in ("Cancelled", "Completed") or subscription.cancelation_date:
+		frappe.throw("Abonnementet er avsluttet og kan ikke faktureres på nytt.")
+	if start < getdate(subscription.start_date) or (subscription.end_date and end > getdate(subscription.end_date)):
+		frappe.throw("Fakturaperioden må ligge innenfor abonnementets start- og sluttdato.")
+	if (start, end) == (current_start, current_end):
+		return
+	if subscription.cancel_at_period_end:
+		frappe.throw("Abonnementet avsluttes etter denne perioden og kan ikke flyttes videre.")
+	next_start = add_days(current_end, 1)
+	if start != next_start:
+		frappe.throw("ENK kan bare opprette abonnementets neste sammenhengende fakturaperiode.")
+	previous = frappe.db.sql(
+		"""select name, enk_external_id from `tabSales Invoice`
+		where subscription=%s and company=%s and docstatus=1 and is_return=0
+		and from_date=%s and to_date=%s for update""",
+		(subscription.name, subscription.company, current_start, current_end),
+		as_dict=True,
+	)
+	expected_event = subscription_event_id(subscription.name, current_start, current_end)
+	if len(previous) != 1 or previous[0].enk_external_id != expected_event:
+		frappe.throw("Forrige abonnementsperiode må ha én bokført ENK-faktura før neste periode kan opprettes.")
+	subscription.check_permission("write")
+	subscription.update_subscription_period(next_start)
+	if (start, end) != (getdate(subscription.current_invoice_start), getdate(subscription.current_invoice_end)):
+		frappe.throw("Abonnementsperioden stemmer ikke med ERPNexts neste sammenhengende periode.")
+	subscription.save()
+
+
 @frappe.whitelist(methods=["POST"])
 def create_timesheet_invoice_draft(data):
 	"""Oppretter ett ENK-utkast fra ubokførte fakturerbare timer i én Timesheet."""
@@ -246,12 +278,8 @@ def create_subscription_invoice_draft(data):
 		frappe.throw("ENK støtter bare kundeabonnement som faktureres som Sales Invoice.")
 	if subscription.submit_invoice:
 		frappe.throw("Slå av «Submit Generated Invoices» på abonnementet før det brukes i ENK. ERPNext kan ellers bokføre fakturaen uten ENK-kontroll.")
-	if not subscription.current_invoice_start or not subscription.current_invoice_end:
-		frappe.throw("Abonnementet mangler aktiv fakturaperiode.")
 	start = _date(data.get("service_start_date"), "tjenestestart")
 	end = _date(data.get("service_end_date"), "tjenesteslutt")
-	if (start, end) != (getdate(subscription.current_invoice_start), getdate(subscription.current_invoice_end)):
-		frappe.throw("ENK-fakturaen må bruke abonnementets aktive fakturaperiode.")
 	if subscription.party != data.get("customer"):
 		frappe.throw("Valgt kunde stemmer ikke med abonnementet.")
 	if any(frappe.get_cached_value("Subscription Plan", row.plan, "currency") != "NOK" for row in subscription.plans):
@@ -263,6 +291,13 @@ def create_subscription_invoice_draft(data):
 	fingerprint = _fingerprint(payload)
 	if existing := _existing(subscription.company, event_id, fingerprint):
 		return existing
+	# Retry er ferdig over. Lås så abonnementet før vi eventuelt flytter én periode,
+	# slik at to forespørsler ikke kan hoppe over eller lage samme neste periode.
+	frappe.db.get_value("Subscription", subscription.name, "name", for_update=True)
+	subscription.reload()
+	if not subscription.current_invoice_start or not subscription.current_invoice_end:
+		frappe.throw("Abonnementet mangler aktiv fakturaperiode.")
+	_advance_subscription_to_requested_period(subscription, start, end)
 	if conflict := _subscription_period_conflict(subscription, start, end):
 		frappe.throw(f"Abonnementets periode er allerede fakturert i {conflict}. Ikke opprett en parallell ENK-faktura.")
 	try:

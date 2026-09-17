@@ -266,6 +266,7 @@ app_license = "mit"
 required_apps = ['erpnext']
 after_install = 'enk_norge.install.after_migrate'
 after_migrate = 'enk_norge.install.after_migrate'
+override_doctype_class = {'Subscription': 'enk_norge.subscription.ENKSubscription'}
 doc_events = {
 	name: {
 		'before_submit': 'enk_norge.validation.validate_transaction',

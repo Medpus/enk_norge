@@ -46,9 +46,8 @@ Gjenoppretting i produksjon er ikke brukt som test.
 
 Sluttkontroll lokalt:
 
-- Samlet suite: 155 testtilfeller. 154 besto; én MVA-test brukte et ufullstendig
-  kreditnotabilag. Testen bruker nå ERPNexts returfunksjon og oppgir leverandørens
-  kreditnotadato. Hele MVA-pakken ble deretter kjørt på nytt: 25 av 25 besto.
+- Samlet suite: 156 av 156 testtilfeller besto uten hoppede tester. Abonnementsflyten
+  er i tillegg kontrollert fra opprettelse med start i dag til neste sammenhengende periode.
 - Rene Python-tester uten Frappe: 61 besto, 24 integrasjonstester ble eksplisitt hoppet over.
 - `ruff check`, Python-kompilering, JavaScript-syntaks og `git diff --check` besto.
 - `bench migrate` på `dev.localhost`, `test.localhost` og `onboarding.localhost` besto.

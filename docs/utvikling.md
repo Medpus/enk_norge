@@ -117,8 +117,13 @@ bench-containeren og når webserveren på port 8000. Vertens port 8001 finnes ba
 containeren. Ikke kopier denne lokale URL-en til produksjon; bruk produksjonens interne,
 tilgjengelige URL etter egen verifisering.
 
-Ved klikkede
-tilpasninger registreres DocType og eventuelle filtre under `fixtures` i `enk_norge/hooks.py`, og
+Headless Playwright må bruke en gyldig nettleser-locale, for eksempel
+`browser.newContext({ locale: "nb-NO" })`. Miljøets `en-US@posix` kan ellers havne i
+`navigator.language` og krasje Frappes `Intl.Locale`-kall. Test uten innsprøytet fallback.
+Punktum-desimaltekst fra API-et må gjøres til et JavaScript-tall før `format_currency`;
+den norske parseren kan ellers tolke punktum som tusenskille og vise feil beløp.
+
+Ved klikkede tilpasninger registreres DocType og eventuelle filtre under `fixtures` i `enk_norge/hooks.py`, og
 kjør `bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh fixtures` for å eksportere JSON
 til appen. Bruk et separat testsite og fiktive bilag for regnskapsflyter. Produksjonsdata på Tower
 skal aldri brukes i dev.
