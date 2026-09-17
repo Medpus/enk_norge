@@ -15,8 +15,8 @@ Skal vi gripe inn i ERPNexts logikk, gjøres det gjennom Frappes hooks i `enk_no
 **aldri** filer under `apps/erpnext/` eller `apps/frappe/`.
 
 Grunnen: så lenge vi holder oss til vår egen app, kan vi oppgradere ERPNext ved å endre versjon
-i `apps.json`, bygge, teste og kjøre `bench migrate`. Bygge-workflowen leser `apps.json`,
-verifiserer at ERPNext-grenen samsvarer med `FRAPPE_BRANCH`, og bruker den versjonerte kontrakten.
+i `apps.json` og kildepinnene i bygge-workflowen, bygge, teste og kjøre `bench migrate`.
+Bygge-workflowen verifiserer de faktiske kildecommittene for Frappe og ERPNext.
 Det krever versjonskontroll og verifisering. Patcher noen ERPNext-kode direkte, arver vi
 vedlikeholdsbyrden til et prosjekt på hundretusenvis av linjer, og da er hele arkitekturvalget
 bortkastet.
@@ -122,13 +122,15 @@ labelen «for konsistens».
   engelsk der Frappe forventer det.
 - Datoer absolutte (YYYY-MM-DD).
 - Git-identitet: `85625055+Medpus@users.noreply.github.com`. **Aldri** jobb-adressen.
-- Varige lærdommer hører i janitor-repoet, ikke bare her.
+- Varige lærdommer om denne appen dokumenteres her. Ikke skriv i janitor-repoet.
 
 ## Norske regnskapsfunksjoner
 
 Les [regelgrunnlaget](docs/norske-enk-krav.md) og [utviklingsplanen](docs/enk-produktplan.md)
-før regnskapsarbeid. Krav og lokal ERPNext-kode er undersøkt 2026-09-17, men norske
-regnskapsfunksjoner er ennå ikke implementert eller verifisert med bilag.
+før regnskapsarbeid. Krav og lokal ERPNext-kode er undersøkt 2026-09-17.
+Implementasjonen utvikles og prøves med fiktive bilag. Se
+[implementering og verifisering](docs/implementering.md) for bevis og gjenstående arbeid;
+kode i repoet betyr ikke at funksjonen er verifisert i produksjon.
 
 Gjenbruk ERPNexts fakturaer, betalinger og hovedbok. Norsk kontoplan, MVA-regler,
 eiertransaksjoner, saldogrupper og rapportmapping hører i denne appen. Avklar lisens for

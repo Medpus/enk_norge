@@ -14,8 +14,8 @@ gjør vi det gjennom Frappes hooks: `doc_events`, `override_doctype_class`,
 `apps/erpnext/`.
 
 Grunnen er enkel: så lenge vi holder oss til vår egen app, oppgraderer vi ERPNext ved å endre
-versjon i `apps.json`, bygge, teste og kjøre `bench migrate`. Bygge-workflowen leser `apps.json`
-og verifiserer at ERPNext-grenen samsvarer med `FRAPPE_BRANCH`. I det øyeblikket noen patcher
+versjon i `apps.json` og kildepinnene i bygge-workflowen, bygge, teste og kjøre `bench migrate`.
+Bygget verifiserer kildecommittene for Frappe og ERPNext. I det øyeblikket noen patcher
 ERPNext-kode direkte, arver vi hele vedlikeholdsbyrden til et prosjekt på hundretusenvis av linjer.
 
 ## Hva som ligger hvor
@@ -49,18 +49,23 @@ Riktig løkke:
 
 ## Status
 
-Skjelettet er generert med `bench new-app` fra `frappe/erpnext:v16.35.0`. Norske
-regnskapsfunksjoner er ikke implementert ennå. Regelverket og ERPNexts dekning er undersøkt
-2026-09-17:
+Appen er under utvikling mot ERPNext 16.35.0 og Frappe 16.34.0. Den har oppstartsveiviser,
+kjøps- og fakturaflyt, bankimport, norske avgiftskontroller, saldoberegning, rapportversjoner
+og SAF-T 1.40. [Verifiseringen](docs/implementering.md) skiller mellom lokale testresultater
+og det som gjenstår før produksjonsbruk.
+
+Regelverket og ERPNexts dekning er undersøkt 2026-09-17:
 
 - [Norske ENK-krav](docs/norske-enk-krav.md): bokføring, MVA, eiendeler, skattemelding og kilder.
 - [Utviklingsplan](docs/enk-produktplan.md): gjenbruk av ERPNext, enkel arbeidsflyt,
   integrasjoner og tester før reell bruk.
+- [Kom i gang](docs/bruk.md): eget oppsett, kjøp, faktura og kontroll av bilag.
 
 Kontrollspor, fakturakrav, arkiv og SAF-T inngår i grunnlaget før ordinær bokføring.
-Direkte innsending av skattemelding er en egen integrasjon. Se janitor-repoet,
-`hosts/tower/fixes/erpnext-oppsett.md`, for driftsbakgrunnen.
+Direkte innsending av skattemelding er en egen integrasjon. Første rapporteringsflyt gir
+grunnlag for manuell levering og lagrer brukerens leveringskvittering.
 
 ## Lisens
 
-MIT
+Appens kode er MIT-lisensiert. Det medleverte [SAF-T-skjemaet](enk_norge/schemas/README.md)
+er publisert av Skatteetaten og beholder sin opphavsrettsangivelse.

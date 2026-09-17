@@ -1,0 +1,163 @@
+{
+ "doctype": "DocType",
+ "name": "ENK Tax Pool",
+ "module": "ENK Norge",
+ "engine": "InnoDB",
+ "track_changes": 1,
+ "autoname": "format:{company}-{income_year}-{saldo_group}",
+ "title_field": "company",
+ "field_order": [
+  "company",
+  "income_year",
+  "saldo_group",
+  "opening_balance",
+  "opening_source_file",
+  "acquisitions",
+  "acquisition_sources_json",
+  "disposal_proceeds",
+  "disposal_sources_json",
+  "disposal_proceeds_taken_to_income",
+  "section_break_result",
+  "balance_before_year_end_adjustments",
+  "depreciation_deduction",
+  "negative_balance_income",
+  "closing_balance",
+  "source_hash",
+  "calculated_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "label": "Foretak",
+   "fieldtype": "Link",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "income_year",
+   "label": "Inntektsår",
+   "fieldtype": "Int",
+   "reqd": 1,
+   "default": "2026",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "saldo_group",
+   "label": "Saldogruppe",
+   "fieldtype": "Select",
+   "options": "a\nd",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "opening_balance",
+   "label": "Inngående saldo",
+   "fieldtype": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "acquisitions",
+   "label": "Anskaffelser",
+   "fieldtype": "Currency",
+   "default": "0"
+  },
+  {
+   "fieldname": "acquisition_sources_json",
+   "label": "Kildebilag for anskaffelser (JSON)",
+   "fieldtype": "Long Text",
+   "description": "Liste med doctype, name og amount. Summen må stemme med anskaffelser."
+  },
+  {
+   "fieldname": "disposal_proceeds",
+   "label": "Realisasjonsvederlag",
+   "fieldtype": "Currency",
+   "default": "0"
+  },
+  {
+   "fieldname": "disposal_sources_json",
+   "label": "Kildebilag for avgang (JSON)",
+   "fieldtype": "Long Text",
+   "description": "Liste med doctype, name og amount. Summen må stemme med realisasjonsvederlag."
+  },
+  {
+   "fieldname": "disposal_proceeds_taken_to_income",
+   "label": "Vederlag tatt direkte til inntekt",
+   "fieldtype": "Currency",
+   "default": "0"
+  },
+  {
+   "fieldname": "section_break_result",
+   "label": "Beregnet skattemessig saldo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "balance_before_year_end_adjustments",
+   "label": "Saldo før årsjusteringer",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "depreciation_deduction",
+   "label": "Skattemessig avskrivning",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "negative_balance_income",
+   "label": "Inntektsføring av negativ saldo",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closing_balance",
+   "label": "Utgående saldo",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_hash",
+   "label": "Kildehash",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "calculated_at",
+   "label": "Beregnet",
+   "fieldtype": "Datetime",
+   "read_only": 1
+  },
+  {
+   "fieldname": "opening_source_file",
+   "label": "Dokumentasjon av inngående skattesaldo",
+   "fieldtype": "Link",
+   "options": "File",
+   "description": "Privat vedlegg fra forrige års saldooppgjør når inngående saldo ikke er null."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "print": 1
+  }
+ ]
+}

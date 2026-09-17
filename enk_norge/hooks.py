@@ -262,3 +262,63 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+required_apps = ['erpnext']
+after_install = 'enk_norge.install.after_migrate'
+after_migrate = 'enk_norge.install.after_migrate'
+doc_events = {
+	name: {
+		'before_submit': 'enk_norge.validation.validate_transaction',
+		'before_cancel': 'enk_norge.validation.validate_transaction',
+		'on_trash': 'enk_norge.validation.protect_delete',
+		'before_rename': 'enk_norge.validation.protect_rename',
+	}
+	for name in ('Sales Invoice', 'Purchase Invoice', 'Payment Entry', 'Journal Entry')
+}
+
+doc_events['File'] = {'on_trash': 'enk_norge.validation.protect_file', 'before_save': 'enk_norge.validation.protect_file_update'}
+for report in ('ENK Year Report', 'ENK VAT Return'):
+	doc_events[report] = {'on_trash': 'enk_norge.validation.protect_delete'}
+
+setup_wizard_requires = 'assets/enk_norge/js/enk_setup.js'
+
+jinja = {'methods': ['enk_norge.printing.enk_invoice_issuer']}
+
+doctype_js = {
+	'Sales Invoice': 'public/js/invoice.js',
+	'Purchase Invoice': 'public/js/invoice.js',
+}
+
+
+doc_events['Payment Entry']['on_submit'] = 'enk_norge.banking.sync_currency_adjustment'
+doc_events['Payment Entry']['before_cancel'] = [
+	'enk_norge.validation.validate_transaction',
+	'enk_norge.banking.sync_currency_adjustment',
+]
+
+
+doc_events['Process Deferred Accounting'] = {
+	'before_insert': 'enk_norge.deferrals.block_native_deferred_accounting',
+	'before_submit': 'enk_norge.deferrals.block_native_deferred_accounting',
+}
+
+
+doc_events['Sales Invoice']['on_submit'] = 'enk_norge.deferrals.sync_credit_reversal'
+doc_events['Sales Invoice']['before_cancel'] = [
+	'enk_norge.validation.validate_transaction',
+	'enk_norge.deferrals.sync_credit_reversal',
+]
+doc_events['Sales Invoice']['before_update_after_submit'] = 'enk_norge.deferrals.validate_deferred_revenue_update'
+doc_events['Sales Invoice']['before_insert'] = 'enk_norge.validation.validate_subscription_invoice_creation'
+
+for doctype in ('Stock Entry', 'POS Invoice', 'Delivery Note', 'Purchase Receipt'):
+	doc_events[doctype] = {
+		'before_submit': 'enk_norge.validation.validate_unsupported_native_accounting',
+		'before_cancel': 'enk_norge.validation.validate_unsupported_native_accounting',
+	}
+
+doc_events['Company'] = {'before_save': 'enk_norge.validation.validate_company_perpetual_inventory'}
+doc_events['Subscription'] = {
+	'before_insert': 'enk_norge.validation.validate_subscription',
+	'before_save': 'enk_norge.validation.validate_subscription',
+}

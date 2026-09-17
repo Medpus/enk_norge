@@ -1,7 +1,8 @@
 # Enkel ENK-drift med ERPNext
 
-Beslutningsgrunnlag undersøkt 2026-09-17. Planen foreslår en utviklingsrekkefølge.
-Funksjonene beskrevet som nye er ikke implementert. Regelgrunnlag og kilder ligger i
+Beslutningsgrunnlag undersøkt 2026-09-17. Planen beskriver kravene og den opprinnelige
+utviklingsrekkefølgen. Gjeldende leveransestatus og testbevis står i
+[implementering og verifisering](implementering.md). Regelgrunnlag og kilder ligger i
 [norske ENK-krav](norske-enk-krav.md).
 
 Målet er at en ENK-innehaver skal kunne registrere et kjøp, fakturere en kunde, kontrollere bank og

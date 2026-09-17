@@ -1,0 +1,30 @@
+{
+ "doctype": "DocType",
+ "name": "ENK Settlement",
+ "module": "ENK Norge",
+ "engine": "InnoDB",
+ "track_changes": 1,
+ "field_order": ["company", "external_settlement_id", "posting_date", "status", "merchant_of_record", "currency", "source_file", "source_sha256", "request_fingerprint", "references_json", "gross_amount", "refund_amount", "fee_amount", "net_amount", "journal_entry"],
+ "fields": [
+  {"fieldname":"company","label":"Foretak","fieldtype":"Link","options":"Company","reqd":1,"in_list_view":1},
+  {"fieldname":"external_settlement_id","label":"Ekstern oppgjørs-ID","fieldtype":"Data","reqd":1,"in_list_view":1},
+  {"fieldname":"posting_date","label":"Utbetalingsdato","fieldtype":"Date","reqd":1},
+  {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Draft\nReady for review","read_only":1,"in_list_view":1},
+  {"fieldname":"merchant_of_record","label":"Selgermodell","fieldtype":"Select","options":"Direct seller","read_only":1},
+  {"fieldname":"currency","label":"Valuta","fieldtype":"Data","read_only":1},
+  {"fieldname":"source_file","label":"Privat oppgjørsfil","fieldtype":"Link","options":"File","read_only":1},
+  {"fieldname":"source_sha256","label":"Oppgjørsfilens SHA-256","fieldtype":"Data","read_only":1},
+  {"fieldname":"request_fingerprint","label":"Oppgjørets kontrollsum","fieldtype":"Data","read_only":1},
+  {"fieldname":"references_json","label":"Faktura- og kreditnotareferanser","fieldtype":"Long Text","read_only":1},
+  {"fieldname":"gross_amount","label":"Brutto salg","fieldtype":"Currency","read_only":1},
+  {"fieldname":"refund_amount","label":"Refusjoner","fieldtype":"Currency","read_only":1},
+  {"fieldname":"fee_amount","label":"Gebyr","fieldtype":"Currency","read_only":1},
+  {"fieldname":"net_amount","label":"Netto utbetaling","fieldtype":"Currency","read_only":1},
+  {"fieldname":"journal_entry","label":"Journalutkast","fieldtype":"Link","options":"Journal Entry","read_only":1}
+ ],
+ "permissions": [
+  {"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"export":1,"print":1},
+  {"role":"Accounts Manager","read":1,"write":1,"create":1,"delete":1,"export":1,"print":1},
+  {"role":"Accounts User","read":1,"print":1}
+ ]
+}

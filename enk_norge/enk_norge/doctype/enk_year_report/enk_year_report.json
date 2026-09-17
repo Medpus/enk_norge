@@ -1,0 +1,304 @@
+{
+ "doctype": "DocType",
+ "name": "ENK Year Report",
+ "module": "ENK Norge",
+ "engine": "InnoDB",
+ "track_changes": 1,
+ "autoname": "format:{company}-{income_year}-{revision}",
+ "title_field": "company",
+ "field_order": [
+  "company",
+  "income_year",
+  "status",
+  "revision",
+  "prepared_at",
+  "snapshot_hash",
+  "snapshot_json",
+  "snapshot_history_json",
+  "section_break_result",
+  "operating_income",
+  "operating_expenses",
+  "accounting_profit",
+  "book_depreciation",
+  "tax_depreciation",
+  "negative_balance_income",
+  "manual_tax_adjustments",
+  "tax_adjustments_json",
+  "taxable_business_profit",
+  "asset_balance",
+  "liability_balance",
+  "equity_balance",
+  "net_assets",
+  "equity_reconciliation_difference",
+  "section_break_person_income",
+  "personal_income_inputs_json",
+  "person_income_result_json",
+  "person_income",
+  "section_break_controls",
+  "person_income_reviewed",
+  "shielding_reviewed",
+  "private_corrections_reviewed",
+  "open_clarifications_json",
+  "section_break_delivery",
+  "manual_filing_status",
+  "private_receipt_file",
+  "manually_filed_at",
+  "book_disposal_result",
+  "direct_disposal_income"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "label": "Foretak",
+   "fieldtype": "Link",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "income_year",
+   "label": "Inntektsår",
+   "fieldtype": "Int",
+   "reqd": 1,
+   "default": "2026",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "label": "Status",
+   "fieldtype": "Select",
+   "options": "Draft\nReady for review\nManually filed",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "revision",
+   "label": "Revisjon",
+   "fieldtype": "Int",
+   "read_only": 1
+  },
+  {
+   "fieldname": "prepared_at",
+   "label": "Beregnet",
+   "fieldtype": "Datetime",
+   "read_only": 1
+  },
+  {
+   "fieldname": "snapshot_hash",
+   "label": "Snapshot-hash",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "snapshot_json",
+   "label": "Gjeldende snapshot",
+   "fieldtype": "Long Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "snapshot_history_json",
+   "label": "Tidligere snapshots",
+   "fieldtype": "Long Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_result",
+   "label": "Årsresultat",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "operating_income",
+   "label": "Driftsinntekter",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "operating_expenses",
+   "label": "Driftskostnader",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "accounting_profit",
+   "label": "Regnskapsmessig resultat",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "book_depreciation",
+   "label": "Bokført avskrivning",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_depreciation",
+   "label": "Skattemessig avskrivning",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "negative_balance_income",
+   "label": "Inntektsføring av negativ saldo",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manual_tax_adjustments",
+   "label": "Manuelle skattekorrigeringer",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_adjustments_json",
+   "label": "Dokumenterte skattekorrigeringer (JSON)",
+   "fieldtype": "Long Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "taxable_business_profit",
+   "label": "Skattemessig næringsresultat",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "asset_balance",
+   "label": "Eiendeler",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "liability_balance",
+   "label": "Gjeld",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "equity_balance",
+   "label": "Egenkapital i hovedbok",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "net_assets",
+   "label": "Netto eiendeler",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "equity_reconciliation_difference",
+   "label": "Avvik i egenkapitalavstemming",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_controls",
+   "label": "Påkrevde avklaringer",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "person_income_reviewed",
+   "label": "Personinntekt er vurdert utenfor denne rapporten",
+   "fieldtype": "Check"
+  },
+  {
+   "fieldname": "shielding_reviewed",
+   "label": "Skjerming er vurdert som ikke relevant eller dokumentert",
+   "fieldtype": "Check"
+  },
+  {
+   "fieldname": "private_corrections_reviewed",
+   "label": "Private uttak og korreksjoner er dokumentert",
+   "fieldtype": "Check"
+  },
+  {
+   "fieldname": "open_clarifications_json",
+   "label": "Åpne avklaringer",
+   "fieldtype": "Long Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_delivery",
+   "label": "Manuell levering",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "manual_filing_status",
+   "label": "Leveringsstatus",
+   "fieldtype": "Select",
+   "options": "Not filed\nManually filed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "private_receipt_file",
+   "label": "Privat leveringskvittering",
+   "fieldtype": "Link",
+   "options": "File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manually_filed_at",
+   "label": "Levert",
+   "fieldtype": "Datetime",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_person_income",
+   "label": "Personinntekt, foretaksmodellen",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "personal_income_inputs_json",
+   "label": "Dokumenterte personinntektsinput (JSON)",
+   "fieldtype": "Long Text"
+  },
+  {
+   "fieldname": "person_income_result_json",
+   "label": "Beregning av personinntekt (JSON)",
+   "fieldtype": "Long Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "person_income",
+   "label": "Beregnet personinntekt",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "book_disposal_result",
+   "label": "Regnskapsmessig gevinst eller tap ved avgang",
+   "fieldtype": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "direct_disposal_income",
+   "label": "Direkte skattemessig inntekt ved avgang",
+   "fieldtype": "Currency",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "print": 1
+  }
+ ]
+}

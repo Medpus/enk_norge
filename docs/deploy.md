@@ -49,14 +49,23 @@ Feiler migreringen, står backupen fra steg 1 i `sites/erp.example.com/private/b
 `v16-<sha>` bruker SHA-en til committen som trigget Actions-jobben. Jobben leser den
 versjonerte `apps.json`, erstatter bare privatappens URL med et kortlevd GitHub-token i
 BuildKit-secreten, og henter så denne committen eksplisitt før den installerer appen og bygger
-assets. En fil i imaget inneholder SHA-en, og jobben puller det pushete imaget og sammenligner
-den maskinelt. Feiler sammenligningen, feiler jobben.
+assets. Tokenfila opprettes under runnerens midlertidige katalog og sendes bare som
+BuildKit-secret.
+
+Frappe er låst til taggen `v16.34.0` og committen `c1f1e8ec3708750d7254f7f99d869ffb9886f19f`.
+ERPNext er låst i `apps.json` til `v16.35.0` og committen
+`12cd563fb9a79731f75ae2a45b1446a0a2dd9e74`. Før bygg henter jobben taggene fra de offisielle
+GitHub-repoene med `git ls-remote` og krever at de fortsatt peker på disse committene. Under bygg
+verifiseres den faktiske checkouten før Git-metadata fjernes. Tre filer i imaget inneholder
+Frappe-, ERPNext- og appcommit, og jobben puller det pushete imaget og sammenligner dem maskinelt.
+Feiler en sammenligning, feiler jobben. En oppgradering krever at alle disse pinnene endres
+bevisst etter lokal verifisering.
 
 `CACHE_BUST` er den samme SHA-en. Dette er nødvendig fordi BuildKit-secrets ikke inngår i
 cache-nøkkelen; uten den kunne den cachede app-laget inneholde en eldre commit. Tokenet finnes
-bare i secret-mounten under build og blir ikke lagret som build-arg eller i imaget.
+bare i runnerens midlertidige secret-fil under build og blir ikke lagret som build-arg, cache
+eller image-lag.
 
-Frappe og ERPNext følger fortsatt `version-16` når imaget bygges. `bench version` i
-Actions-sammendraget er den eksakte Frappe- og ERPNext-versjonen i dette imaget. Også taggen
-`v16` er flytende og er kun en bekvemmelighetspeker. Produksjon bruker alltid den eksakte
+`bench version` i Actions-sammendraget er en ekstra, menneskelesbar kontroll. Taggen `v16` er
+fortsatt flytende og er kun en bekvemmelighetspeker. Produksjon bruker alltid den eksakte
 `v16-<sha>`-taggen i `.env`.

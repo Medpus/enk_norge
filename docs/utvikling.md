@@ -90,7 +90,32 @@ bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench new-site test.localh
   --admin-password admin --install-app erpnext --install-app enk_norge
 bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost set-config allow_tests true
 bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost run-tests --app enk_norge
+bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost execute enk_norge.tests.runner.run
 ```
+
+Når benchen har flere lokale sites, skal `serve_default_site` være `false` og `default_site` være
+tom i den globale bench-konfigurasjonen. Ellers starter `bench serve` med `dev.localhost` låst som
+site og sender HTTP-kall dit, også når nettleseren åpner et separat testsite. Bekreft alltid
+`frappe.boot.sitename` før en browser-test oppretter data.
+
+Ved PDF-test fra et separat lokalt site må sitets `host_name` peke til containerens interne
+webport, for eksempel `http://onboarding.localhost:8000`. Nettleseren bruker fortsatt
+vertsporten 8001. Uten dette prøver wkhtmltopdf i containeren å hente utskriftsressurser på
+vertsporten og feiler med `ConnectionRefusedError`. Dette er bare en lokal testinnstilling;
+produksjonens interne URL må verifiseres separat.
+
+Dette er en site-konfigurasjon, ikke en endring i faktura- eller PDF-koden:
+
+```bash
+bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site onboarding.localhost \
+  set-config host_name http://onboarding.localhost:8000
+bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site onboarding.localhost clear-cache
+```
+
+Frappe bygger utskriftens URL-er fra `host_name`, mens wkhtmltopdf kjører inne i
+bench-containeren og når webserveren på port 8000. Vertens port 8001 finnes bare utenfor
+containeren. Ikke kopier denne lokale URL-en til produksjon; bruk produksjonens interne,
+tilgjengelige URL etter egen verifisering.
 
 Ved klikkede
 tilpasninger registreres DocType og eventuelle filtre under `fixtures` i `enk_norge/hooks.py`, og

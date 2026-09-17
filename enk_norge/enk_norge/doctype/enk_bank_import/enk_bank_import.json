@@ -1,0 +1,26 @@
+{
+ "doctype": "DocType",
+ "name": "ENK Bank Import",
+ "module": "ENK Norge",
+ "engine": "InnoDB",
+ "is_submittable": 1,
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "field_order": ["naming_series", "company", "bank_account", "source_file", "source_file_name", "source_sha256", "row_count", "import_status", "transactions_json"],
+ "fields": [
+  {"fieldname": "naming_series", "label": "Serie", "fieldtype": "Select", "options": "ENK-BANK-.YYYY.-.#####", "default": "ENK-BANK-.YYYY.-.#####", "reqd": 1, "read_only": 1},
+  {"fieldname": "company", "label": "Foretak", "fieldtype": "Link", "options": "Company", "reqd": 1, "read_only": 1, "in_list_view": 1},
+  {"fieldname": "bank_account", "label": "Bankkonto", "fieldtype": "Link", "options": "Bank Account", "reqd": 1, "read_only": 1},
+  {"fieldname": "source_file", "label": "Privat kildefil", "fieldtype": "Link", "options": "File", "reqd": 1, "read_only": 1},
+  {"fieldname": "source_file_name", "label": "Filnavn", "fieldtype": "Data", "read_only": 1},
+  {"fieldname": "source_sha256", "label": "SHA-256", "fieldtype": "Data", "reqd": 1, "read_only": 1, "in_list_view": 1},
+  {"fieldname": "row_count", "label": "Antall rader", "fieldtype": "Int", "read_only": 1},
+  {"fieldname": "import_status", "label": "Status", "fieldtype": "Select", "options": "Draft\nImported", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "transactions_json", "label": "Banktransaksjoner og radhasher", "fieldtype": "Long Text", "read_only": 1}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "submit": 1, "print": 1, "export": 1},
+  {"role": "Accounts Manager", "read": 1, "write": 1, "create": 1, "submit": 1, "print": 1, "export": 1},
+  {"role": "Accounts User", "read": 1, "print": 1}
+ ]
+}

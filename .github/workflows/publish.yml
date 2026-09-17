@@ -14,13 +14,71 @@ on:
 
 env:
   IMAGE: ghcr.io/medpus/erpnext-enk
-  FRAPPE_BRANCH: version-16
+  # Kildetaggen og committen er bevisst låst til versjonene som er testet lokalt.
+  # Denne verdien brukes også som tagg for Frappe Docker sine offisielle build/base-images.
+  FRAPPE_REF: v16.34.0
+  FRAPPE_SHA: c1f1e8ec3708750d7254f7f99d869ffb9886f19f
+  ERPNEXT_REF: v16.35.0
+  ERPNEXT_SHA: 12cd563fb9a79731f75ae2a45b1446a0a2dd9e74
   # Containerfile-en under er kontrollert mot denne revisjonen. En eksplisitt
   # oppgradering skal verifisere secret- og CACHE_BUST-kontrakten på nytt.
   FRAPPE_DOCKER_REF: c74f28db98fde650612d02a5353177a9c2df4f34
 
 jobs:
+  pure-tests:
+    name: Rene Python-tester
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Hent enk_norge ved committen som trigget jobben
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Sett opp Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Installer appavhengigheter
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Kjør rene regler, SAF-T, årsoppgjør og MVA-tester
+        # Frappe installeres ikke i denne jobben. Integrasjonstester blir derfor
+        # eksplisitt holdt utenfor, og eventuelle Frappe-klasser i modulene skippes.
+        run: |
+          python -m unittest -v \
+            enk_norge.tests.test_norway_rules \
+            enk_norge.tests.test_saft \
+            enk_norge.tests.test_posting_contract \
+            enk_norge.tests.test_year_end \
+            enk_norge.tests.test_vat \
+            enk_norge.tests.test_deferrals \
+            enk_norge.tests.test_settlement
+
+      - name: Bygg wheel og verifiser SAF-T-XSD
+        run: |
+          python -m pip wheel --no-deps --wheel-dir dist .
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheels = list(Path("dist").glob("enk_norge-*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit(f"forventet én enk_norge-wheel, fikk {wheels}")
+          expected = "enk_norge/schemas/Norwegian_SAF-T_Financial_Schema_v_1.40.xsd"
+          with ZipFile(wheels[0]) as wheel:
+              if expected not in wheel.namelist():
+                  raise SystemExit(f"mangler {expected} i {wheels[0]}")
+          PY
+
   build:
+    needs: pure-tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,24 +109,32 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Klargjør app-listen og lås enk_norge til triggering commit
+      - name: Verifiser offentlige kildepinner og klargjør app-listen
         # apps.json er den versjonerte kontrakten. Bare URL-en for privatappen
         # erstattes i kopien som sendes som BuildKit-secret; tokenet blir aldri
         # skrevet i Containerfile, build-arg eller image-lag.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          verify_tag() {
+            actual="$(git ls-remote --exit-code --tags "$1" "refs/tags/$2" | awk '{print $1}')"
+            test "$actual" = "$3"
+          }
+          verify_tag https://github.com/frappe/frappe.git "$FRAPPE_REF" "$FRAPPE_SHA"
+          verify_tag https://github.com/frappe/erpnext.git "$ERPNEXT_REF" "$ERPNEXT_SHA"
+
           app_url="https://github.com/${GITHUB_REPOSITORY}"
-          jq -e --arg app_url "$app_url" --arg frappe_branch "$FRAPPE_BRANCH" '
+          jq -e --arg app_url "$app_url" --arg erpnext_ref "$ERPNEXT_REF" '
             length == 2 and
-            ([.[] | select(.url == "https://github.com/frappe/erpnext" and .branch == $frappe_branch)] | length == 1) and
+            ([.[] | select(.url == "https://github.com/frappe/erpnext" and .branch == $erpnext_ref)] | length == 1) and
             ([.[] | select(.url == $app_url and .branch == "main")] | length == 1)
           ' apps.json > /dev/null
 
           private_app_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
+          umask 077
           jq --arg app_url "$app_url" --arg private_app_url "$private_app_url" '
             map(if .url == $app_url then .url = $private_app_url else . end)
-          ' apps.json > apps.build.json
+          ' apps.json > "$RUNNER_TEMP/apps.build.json"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -76,12 +142,16 @@ jobs:
           path = Path("frappe_docker/images/layered/Containerfile")
           source = path.read_text()
           replacements = {
-              'ARG CACHE_BUST=""': 'ARG CACHE_BUST=""\n\nARG ENK_NORGE_SHA',
-              'find apps -mindepth 1 -path "*/.git" | xargs rm -fr': '''git -C apps/enk_norge fetch --depth 1 upstream "${ENK_NORGE_SHA}" && \\
+              'ARG CACHE_BUST=""': 'ARG CACHE_BUST=""\n\nARG FRAPPE_SHA\nARG ERPNEXT_SHA\nARG ENK_NORGE_SHA',
+              'find apps -mindepth 1 -path "*/.git" | xargs rm -fr': '''test "$(git -C apps/frappe rev-parse HEAD)" = "${FRAPPE_SHA}" && \\
+              test "$(git -C apps/erpnext rev-parse HEAD)" = "${ERPNEXT_SHA}" && \\
+              git -C apps/enk_norge fetch --depth 1 upstream "${ENK_NORGE_SHA}" && \\
               git -C apps/enk_norge checkout --detach "${ENK_NORGE_SHA}" && \\
               bench setup requirements enk_norge && \\
               bench build --app enk_norge && \\
               test "$(git -C apps/enk_norge rev-parse HEAD)" = "${ENK_NORGE_SHA}" && \\
+              printf '%s\\n' "${FRAPPE_SHA}" > frappe.sha && \\
+              printf '%s\\n' "${ERPNEXT_SHA}" > erpnext.sha && \\
               printf '%s\\n' "${ENK_NORGE_SHA}" > enk_norge.sha && \\
               find apps -mindepth 1 -path "*/.git" -exec rm -rf {} +''',
           }
@@ -99,11 +169,13 @@ jobs:
           file: frappe_docker/images/layered/Containerfile
           push: true
           secret-files: |
-            apps_json=apps.build.json
+            apps_json=${{ runner.temp }}/apps.build.json
           build-args: |
-            FRAPPE_BRANCH=${{ env.FRAPPE_BRANCH }}
+            FRAPPE_BRANCH=${{ env.FRAPPE_REF }}
             FRAPPE_PATH=https://github.com/frappe/frappe
             CACHE_BUST=${{ github.sha }}
+            FRAPPE_SHA=${{ env.FRAPPE_SHA }}
+            ERPNEXT_SHA=${{ env.ERPNEXT_SHA }}
             ENK_NORGE_SHA=${{ github.sha }}
           tags: |
             ${{ env.IMAGE }}:v16-${{ github.sha }}
@@ -111,16 +183,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verifiser commit og noter versjoner i pushet image
+      - name: Verifiser kildepinner og noter versjoner i pushet image
         run: |
           image="${IMAGE}:v16-${GITHUB_SHA}"
           docker pull "$image"
+          actual_frappe_sha="$(docker run --rm --entrypoint cat "$image" /home/frappe/frappe-bench/frappe.sha)"
+          actual_erpnext_sha="$(docker run --rm --entrypoint cat "$image" /home/frappe/frappe-bench/erpnext.sha)"
           actual_sha="$(docker run --rm --entrypoint cat "$image" /home/frappe/frappe-bench/enk_norge.sha)"
+          test "$actual_frappe_sha" = "$FRAPPE_SHA"
+          test "$actual_erpnext_sha" = "$ERPNEXT_SHA"
           test "$actual_sha" = "$GITHUB_SHA"
 
           {
             echo '## Verifisert image `'"${IMAGE}:v16-${GITHUB_SHA}"'`'
             echo
+            echo "Frappe commit: \`${actual_frappe_sha}\`"
+            echo "ERPNext commit: \`${actual_erpnext_sha}\`"
             echo "enk_norge commit: \`${actual_sha}\`"
             echo '```'
             docker run --rm --entrypoint bash "$image" \

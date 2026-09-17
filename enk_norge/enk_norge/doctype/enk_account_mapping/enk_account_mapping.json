@@ -1,0 +1,49 @@
+{
+ "doctype": "DocType",
+ "name": "ENK Account Mapping",
+ "module": "ENK Norge",
+ "engine": "InnoDB",
+ "istable": 1,
+ "track_changes": 1,
+ "field_order": [
+  "account",
+  "standard_account_id",
+  "grouping_category",
+  "grouping_code",
+  "tax_category"
+ ],
+ "fields": [
+  {
+   "fieldname": "account",
+   "label": "Konto",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "standard_account_id",
+   "label": "SAF-T standardkonto",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "grouping_category",
+   "label": "SAF-T grupperingskategori",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "grouping_code",
+   "label": "SAF-T grupperingskode",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "tax_category",
+   "label": "Årsoppgjørskategori",
+   "fieldtype": "Select",
+   "options": "Asset\nLiability\nEquity\nIncome\nExpense",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "permissions": []
+}

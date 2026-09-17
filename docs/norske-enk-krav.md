@@ -175,6 +175,14 @@ er aktivert betyr ikke alene at angreretten er borte. Checkout må dokumentere r
 opplysninger, samtykker og bekreftelser; regnskapet må håndtere kreditnota/refusjon.
 [Angrerettloven, særlig §§ 8, 21, 22 og 26](https://lovdata.no/lov/2014-06-20-27)
 
+Abonnement og lignende ytelser kan på vilkår faktureres på forskudd for inntil ett år.
+Fakturadato og avgiftsperiode er ikke nødvendigvis samme periode som inntekten er opptjent.
+Avtale, tjenestestart og tjenesteslutt må derfor bevares, og inntektsføringen må følge den
+faktiske leveransen. Første implementasjon fordeler dokumenterte, jevnt leverte tjenester
+etter dager. Den forutsetningen passer ikke automatisk for alle prosjektavtaler.
+[Skatteetaten: forskuddsfakturering og periodisering](https://www.skatteetaten.no/rettskilder/type/handboker/merverdiavgiftshandboken/gjeldende/M-15/M-15-9/M-15-9.3/),
+[Skatte-ABC: tidfesting av virksomhetsinntekt](https://oppslag.rettskilder.skatteetaten.no/rettskilder2/type/handboker/skatte-abc/gjeldende/skatteabc-V-10/skatteabc-V-10.018).
+
 Dette gjør konsulentvirksomhet og SaaS til nyttige første testtilfeller for en generell
 modul: kundetype, land, avgiftsansvar og leveringsperiode må være data. Ingen av reglene
 skal være knyttet til et bestemt prosjekt eller domenenavn.
@@ -210,6 +218,13 @@ føringen. Om foretaket blir regnskapspliktig, må forskjeller og eventuelle for
 vurderes særskilt.
 [Skatteetaten om avskrivning for bokføringspliktige](https://www.skatteetaten.no/bedrift-og-organisasjon/utenlandsk/skattemelding-og-skatteoppgjor/fradrag/)
 
+Ved salg av et driftsmiddel må bokført verdi fjernes fra balansen. Regnskapsmessig
+gevinst eller tap og skattemessig behandling av salgssummen skal avstemmes hver for seg.
+Et driftsmiddelsalg i avgiftspliktig virksomhet kan også utløse MVA-registrering. Det må
+inngå i terskelkontrollen sammen med vanlig omsetning. Unntatt virksomhet må vurderes
+særskilt; første driftsmiddelflyt dekker ikke den situasjonen.
+[Skatteetaten: registreringsgrensen og salg av driftsmidler](https://www.skatteetaten.no/rettskilder/type/handboker/merverdiavgiftshandboken/gjeldende/M-2/M-2-1/M-2-1.3/).
+
 ## Skattemelding og årsoppgjør
 
 ENK leverer én skattemelding med både personlige opplysninger og næringsspesifikasjon.
@@ -234,6 +249,20 @@ Dette er en sjekkliste for produktet, ikke en påstand om at alle feltene gjelde
 Kontoplan alene er ikke nok: rapporteringen trenger en versjonert kobling fra kontoer og
 skattejusteringer til feltene for det aktuelle inntektsåret. En SAF-T-fil er verken en
 skattemelding eller dokumentasjon på at skattemeldingen er levert.
+
+Personinntekt i ENK følger foretaksmodellen. Beregningen starter med netto næringsinntekt,
+og korrigeres for relevante kapitalposter, renter, særskilte fradrag, skjerming og eventuell
+fremført negativ personinntekt. Hver post må ha dokumentert grunnlag i rapportåret. Systemet
+lagrer derfor input og resultat sammen med årsrapportens hash, men fastsetter ikke selv en
+skjermingsrente for 2026. Bruk dokumentert skjermingsbeløp eller en rente som er bekreftet for
+det aktuelle inntektsåret før rapporten markeres klar. Negativ beregnet personinntekt skal
+bevares som fremføringsgrunnlag; tilgjengelig fremføring brukes mot positiv personinntekt ved
+første anledning og aldri under null.
+[Skatteetaten: oversikt over beregning av personinntekt](https://www.skatteetaten.no/rettskilder/type/handboker/skatte-abc/gjeldende/e-5-enkeltpersonforetak--beregnet-personinntekt-foretaksmodellen/E-5.016/E-5.018/),
+[Skatteetaten: skjermingsfradrag](https://www.skatteetaten.no/rettskilder/type/handboker/skatte-abc/gjeldende/e-5-enkeltpersonforetak--beregnet-personinntekt-foretaksmodellen/E-5.054/E-5.055/)
+og [Skatteetaten: skjermingsrente](https://www.skatteetaten.no/rettskilder/type/handboker/skatte-abc/gjeldende/e-5-enkeltpersonforetak--beregnet-personinntekt-foretaksmodellen/E-5.054/E-5.091/).
+[Skatteetaten: fremføring av negativ beregnet personinntekt](https://www.skatteetaten.no/rettskilder/type/handboker/skatte-abc/2025/e-5-enkeltpersonforetak--beregnet-personinntekt-foretaksmodellen/E-5.096/E-5.105/)
+beskriver kravet om fremføring ved første anledning.
 
 Privat skatt avhenger også av lønn, andre inntekter, fradrag og personlige forhold.
 Et felt med en fast prosent av resultatet kan være et spareanslag, men må ikke presenteres

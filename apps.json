@@ -1,7 +1,7 @@
 [
   {
     "url": "https://github.com/frappe/erpnext",
-    "branch": "version-16"
+    "branch": "v16.35.0"
   },
   {
     "url": "https://github.com/Medpus/enk_norge",

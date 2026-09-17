@@ -1,0 +1,21 @@
+{
+ "content": null,
+ "doctype": "Page",
+ "module": "ENK Norge",
+ "name": "enk-norge",
+ "page_name": "enk-norge",
+ "roles": [
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "standard": "Yes",
+ "system_page": 0,
+ "title": "ENK Norge"
+}

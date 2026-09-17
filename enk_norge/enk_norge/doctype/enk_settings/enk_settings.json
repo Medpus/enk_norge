@@ -1,0 +1,344 @@
+{
+ "doctype": "DocType",
+ "name": "ENK Settings",
+ "module": "ENK Norge",
+ "engine": "InnoDB",
+ "istable": 0,
+ "track_changes": 1,
+ "field_order": [
+  "company",
+  "organization_number",
+  "bank_account",
+  "start_date",
+  "address_line",
+  "postal_code",
+  "city",
+  "vat_registered",
+  "vat_registration_date",
+  "history_confirmed",
+  "invoice_prefix",
+  "frozen_through",
+  "accounts",
+  "bank_ledger_account",
+  "receivable_account",
+  "payable_account",
+  "owner_account",
+  "withdrawal_account",
+  "income_account",
+  "deferred_revenue_account",
+  "expense_account",
+  "software_account",
+  "equipment_account",
+  "asset_account",
+  "input_vat_account",
+  "output_vat_account",
+  "reverse_vat_account",
+  "clearing_account",
+  "fees_account",
+  "depreciation_account",
+  "rounding_account",
+  "fx_gain_account",
+  "fx_loss_account",
+  "phone",
+  "export_income_account",
+  "exempt_income_account",
+  "bank_name",
+  "bank_account_record",
+  "asset_gain_account",
+  "asset_loss_account"
+ ],
+ "fields": [
+  {
+   "fieldname": "fx_gain_account",
+   "label": "Valutagevinst",
+   "fieldtype": "Link",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fx_loss_account",
+   "label": "Valutatap",
+   "fieldtype": "Link",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "label": "Foretak",
+   "fieldtype": "Link",
+   "options": "Company",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "organization_number",
+   "label": "Organisasjonsnummer",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bank_account",
+   "label": "Norsk bankkonto",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "label": "Første bokføringsdato",
+   "fieldtype": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "address_line",
+   "label": "Forretningsadresse",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "postal_code",
+   "label": "Postnummer",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "city",
+   "label": "Poststed",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vat_registered",
+   "label": "Registrert i MVA-registeret",
+   "fieldtype": "Check"
+  },
+  {
+   "fieldname": "vat_registration_date",
+   "label": "MVA gjelder fra",
+   "fieldtype": "Date"
+  },
+  {
+   "fieldname": "history_confirmed",
+   "label": "Jeg har kontrollert tidligere fakturaer og inngående balanse",
+   "fieldtype": "Check",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_prefix",
+   "label": "Fakturaprefiks",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "frozen_through",
+   "label": "Bokføring stengt til og med",
+   "fieldtype": "Date"
+  },
+  {
+   "fieldname": "accounts",
+   "label": "Rapportkoblinger",
+   "fieldtype": "Table",
+   "options": "ENK Account Mapping",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bank_ledger_account",
+   "label": "Bank",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "receivable_account",
+   "label": "Kundefordringer",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payable_account",
+   "label": "Leverandørgjeld",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "owner_account",
+   "label": "Eierinnskudd og private utlegg",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "withdrawal_account",
+   "label": "Privatuttak",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "income_account",
+   "label": "Salgsinntekt",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "deferred_revenue_account",
+   "label": "Utsatt abonnementsinntekt",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "expense_account",
+   "label": "Annen driftskostnad",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "software_account",
+   "label": "Programvare",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "equipment_account",
+   "label": "Kostnadsført utstyr",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "asset_account",
+   "label": "Aktivert utstyr",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "input_vat_account",
+   "label": "Inngående MVA",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "output_vat_account",
+   "label": "Utgående MVA",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reverse_vat_account",
+   "label": "Omvendt MVA",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "clearing_account",
+   "label": "Betalingsoppgjør",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fees_account",
+   "label": "Bank- og betalingsgebyr",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "depreciation_account",
+   "label": "Avskrivninger",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rounding_account",
+   "label": "Avrunding",
+   "fieldtype": "Link",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "phone",
+   "label": "Telefon",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "export_income_account",
+   "label": "Inntekt fra eksport",
+   "fieldtype": "Link",
+   "reqd": 1,
+   "options": "Account"
+  },
+  {
+   "fieldname": "exempt_income_account",
+   "label": "Inntekt unntatt MVA",
+   "fieldtype": "Link",
+   "reqd": 1,
+   "options": "Account"
+  },
+  {
+   "fieldname": "bank_name",
+   "label": "Bankens navn",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bank_account_record",
+   "label": "Bankkonto for avstemming",
+   "fieldtype": "Link",
+   "options": "Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "asset_gain_account",
+   "label": "Gevinst ved avgang av utstyr",
+   "fieldtype": "Link",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "asset_loss_account",
+   "label": "Tap ved avgang av utstyr",
+   "fieldtype": "Link",
+   "options": "Account",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "print": 1
+  }
+ ],
+ "autoname": "field:company",
+ "title_field": "company"
+}
