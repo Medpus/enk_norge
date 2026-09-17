@@ -79,7 +79,7 @@ jobs:
               'ARG CACHE_BUST=""': 'ARG CACHE_BUST=""\n\nARG ENK_NORGE_SHA',
               'find apps -mindepth 1 -path "*/.git" | xargs rm -fr': '''git -C apps/enk_norge fetch --depth 1 upstream "${ENK_NORGE_SHA}" && \\
               git -C apps/enk_norge checkout --detach "${ENK_NORGE_SHA}" && \\
-              bench setup requirements --apps enk_norge && \\
+              bench setup requirements enk_norge && \\
               bench build --app enk_norge && \\
               test "$(git -C apps/enk_norge rev-parse HEAD)" = "${ENK_NORGE_SHA}" && \\
               printf '%s\\n' "${ENK_NORGE_SHA}" > enk_norge.sha && \\
