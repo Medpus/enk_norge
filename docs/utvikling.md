@@ -54,8 +54,8 @@ DocTypes krever `developer_mode` (allerede satt) for å bli skrevet til disk i a
 
 ## Plass
 
-Benchen med begge apper og containerne tar rundt 10 GiB. Nobara hadde 56 GiB ledig ved forrige
-måling, og 96 GiB lå i papirkurven — tøm den hvis det blir trangt.
+Benchen med begge apper og containerne tar rundt 10 GiB. Nobara hadde 190 GiB ledig
+2026-09-17, så det er god margin.
 
 ## Testing før deploy
 
