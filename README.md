@@ -49,10 +49,11 @@ Riktig løkke:
 
 ## Status
 
-Appen er under utvikling mot ERPNext 16.35.0 og Frappe 16.34.0. Den har oppstartsveiviser,
+Versjon 0.1.0 er satt i produksjon på Tower og verifisert 2026-09-18 med ERPNext 16.35.0
+og Frappe 16.34.0. Den har oppstartsveiviser,
 kjøps- og fakturaflyt, bankimport, norske avgiftskontroller, saldoberegning, rapportversjoner
-og SAF-T 1.40. [Verifiseringen](docs/implementering.md) skiller mellom lokale testresultater
-og det som gjenstår før produksjonsbruk.
+og SAF-T 1.40. Regelsettet gjelder 2026. Se [verifisering og avgrensninger](docs/implementering.md)
+for testbevis, produksjonsversjon og hvilke arbeidsflyter som støttes.
 
 Regelverket og ERPNexts dekning er undersøkt 2026-09-17:
 

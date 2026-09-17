@@ -66,13 +66,32 @@ Saldogruppedialogen er også kjørt mot backend i nettleseren: et fiktivt aktive
 360 kroner. Driftsmiddelavgang er integrasjonstestet i backend; dialogen er kontrollert
 visuelt, men det er ikke opprettet avgang gjennom nettleseren.
 
-[CI-kjøring 35280085766](https://github.com/Medpus/enk_norge/actions/runs/35280085766)
-besto for `35dec3fa517b1d6cc0913f15364d60dce580a5e6`. Den kjørte de rene testene,
+[CI-kjøring 35282575671](https://github.com/Medpus/enk_norge/actions/runs/35282575671)
+besto for `54b4f98a4a5f19301b9698765f49c9936f2baaf8`. Den kjørte de rene testene,
 kontrollerte wheel-innholdet, bygget og publiserte imaget, og verifiserte alle tre
 kildecommittene i det nedlastede imaget.
 
-Produksjonsverifiseringen føres her etter deploy. Lokale testresultater og et grønt bygg
-alene betyr ikke at en versjon er satt i produksjon.
+## Produksjon
+
+Verifisert på Tower 2026-09-18: alle seks appcontainere kjører
+`ghcr.io/medpus/erpnext-enk:v16-54b4f98a4a5f19301b9698765f49c9936f2baaf8`.
+Installerte versjoner er Frappe 16.34.0, ERPNext 16.35.0 og ENK Norge 0.1.0.
+Migreringen besto, intern ping ga HTTP 200, og scheduleren hadde to workers.
+Offentlig URL ga HTTP 302 til Cloudflare Access med `www-authenticate`.
+
+Full backup før utrulling har prefikset `20260918_041453-erp_example_com` i
+sitets `private/backups/`: database, offentlige og private filer samt site-konfigurasjon.
+Tidsstempelet er backupens faktiske filnavn, ikke en angivelse av norsk lokaltid.
+
+PDF-konfigurasjonen bruker `http://erpnext-frontend:8080` for statiske ressurser.
+En utskrift av DocType-metadata hentet intern CSS med HTTP 200 og ga en PDF på
+41 217 byte. Siden ble rendret og kontrollert visuelt med stil, tabeller og sidefot.
+Dette prøver ressursveien i produksjon; selve fakturanedlastingen er prøvd på testsite.
+Det er ikke opprettet testforetak eller bilag i produksjon.
+
+Administrator-kontoen er aktiv, og ENK-siden og veiviserens filer er installert.
+Company, Sales Invoice, Purchase Invoice og Journal Entry hadde alle null poster etter
+kontrollen. Brukeren fullfører oppsettet selv etter [bruksveiledningen](bruk.md).
 
 ## Avgrensninger
 

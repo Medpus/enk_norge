@@ -95,6 +95,8 @@ bash ~/git/janitor/hosts/tower/scripts/erpnext-deploy.sh v16-<sha>
 ```
 
 Scriptet tar backup, bytter image, installerer nye apper, kjører `bench migrate` og verifiserer.
+Hvis scriptet bare finnes i den lokale janitor-klonen, følg SSH-flyten i
+[deploy-veiledningen](docs/deploy.md). Ikke opprett en janitor-klone på Tower for dette.
 
 **ERPNext-stacken har bevisst ingen Watchtower-label.** De andre appene auto-oppdateres;
 denne gjør det ikke, fordi et nytt image alltid må følges av `bench migrate`. Ikke legg på
@@ -115,6 +117,9 @@ labelen «for konsistens».
 - `bench new-site` skrur **av** scheduleren. I produksjon må den skrus på igjen.
 - `developer_mode` må være på i dev, ellers havner nye DocTypes bare i databasen og ikke som
   filer i appen.
+- Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.
+  ENK-fakturaens nedlasting bruker site-innstillingen `enk_pdf_asset_origin` for interne
+  statiske ressurser. Se deploy-veiledningen. Ikke sett offentlig `host_name` til en intern URL.
 
 ## Konvensjoner
 
