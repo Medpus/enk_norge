@@ -1,56 +1,66 @@
 # Utviklingsmiljø
 
-Utvikling skjer på utviklingsmaskinen (devmaskin), ikke på Tower. Tower er deploy-mål.
+Kjøres på **devmaskin**, ikke på Tower. Tower er deploy-mål.
 
-## Oppsett
-
-Frappe har en ferdig devcontainer i `frappe_docker`:
+## Oppsett — én kommando
 
 ```bash
-git clone https://github.com/frappe/frappe_docker
-cd frappe_docker
-cp -R devcontainer-example .devcontainer
-cp -R development/vscode-example development/.vscode
+bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev-setup.sh
 ```
 
-Åpne mappa i VS Code og «Reopen in Container». Inne i containeren:
+Scriptet finner selv om du har docker eller podman, lager `~/frappe-dev/`, starter MariaDB og
+Redis, initialiserer en bench på `version-16`, henter ERPNext, kloner denne appen, lager sitet
+`dev.localhost` med begge apper installert, og skrur på `developer_mode`. Det er idempotent —
+kjør det på nytt når som helst.
+
+Første kjøring tar 10–20 minutter og laster ned noen GB.
+
+> Verifisert ende-til-ende 2026-09-17 ved å kjøre hele oppsettet på Tower og rive det etterpå.
+
+Slår ikke `dev.localhost` opp, legg den i hosts-fila:
 
 ```bash
-bench init --skip-redis-config-generation --frappe-branch version-16 frappe-bench
-cd frappe-bench
-bench set-config -g db_host mariadb
-bench set-config -g redis_cache redis://redis-cache:6379
-bench set-config -g redis_queue redis://redis-queue:6379
-bench set-config -g redis_socketio redis://redis-queue:6379
-
-bench new-site dev.localhost --mariadb-user-host-login-scope='%' --db-root-password 123 --admin-password admin
-bench get-app --branch version-16 erpnext
-bench get-app git@github.com:Medpus/enk_norge.git
-bench --site dev.localhost install-app erpnext enk_norge
-bench --site dev.localhost set-config developer_mode 1
-bench start
+echo '127.0.0.1 dev.localhost' | sudo tee -a /etc/hosts
 ```
 
-Sitet svarer da på `http://dev.localhost:8000`.
+## Daglig bruk
 
-> Denne oppskriften er hentet fra frappe_dockers egen dokumentasjon og er **ikke kjørt gjennom
-> på nobara ennå**. Første gjennomkjøring bør rette opp det som eventuelt skurrer, og oppdatere
-> denne fila.
+```bash
+enk-dev.sh start      # starter alt, server på http://dev.localhost:8000
+enk-dev.sh stop
+enk-dev.sh status
+enk-dev.sh logs       # følg bench-loggen
+enk-dev.sh shell      # bash inne i benchen
+enk-dev.sh bench ...  # vilkårlig bench-kommando
+enk-dev.sh migrate
+enk-dev.sh console    # python-konsoll mot dev-sitet
+enk-dev.sh fixtures   # eksporter klikkede tilpasninger inn i appen
+```
 
-## Hvorfor et eget site
+Innlogging: `Administrator` / `admin`. Miljøet lytter bare på `127.0.0.1`, og de trivielle
+passordene er greie nettopp fordi det aldri eksponeres.
 
-Produksjonsdatabasen på Tower røres aldri under utvikling. Du jobber mot `dev.localhost` med
-fiktive bilag, og endringene når produksjon først gjennom et image + `bench migrate`.
+## Hvor arbeidskopien ligger
 
-`developer_mode` må være på for at nye DocTypes skal skrives til disk i appen din i stedet for
-bare å ligge i databasen.
+```
+~/frappe-dev/development/frappe-bench/apps/enk_norge
+```
+
+**Det er denne du redigerer og pusher fra** — en vanlig klone med `origin` mot GitHub. Ikke lag
+en egen klone et annet sted; da redigerer du noe benchen ikke kjører.
+
+`bench start` har en filovervåker, så endringer i Python og JS slår inn uten omstart. Nye
+DocTypes krever `developer_mode` (allerede satt) for å bli skrevet til disk i appen.
+
+## Plass
+
+Benchen med begge apper og containerne tar rundt 10 GiB. Nobara hadde 56 GiB ledig ved forrige
+måling, og 96 GiB lå i papirkurven — tøm den hvis det blir trangt.
 
 ## Testing før deploy
 
-Kjør migreringen i dev før du ruller ut:
-
 ```bash
-bench --site dev.localhost migrate
+enk-dev.sh migrate
 ```
 
-Det er her en ERPNext-oppgradering som brekker appen vår skal avsløres — ikke på Tower.
+Det er her en ERPNext-oppgradering som brekker appen vår skal avsløres. Aldri på Tower.
