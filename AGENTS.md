@@ -1,6 +1,7 @@
 # enk_norge: driftsmanual for agenter
 
-Norsk ERPNext-tilpasning for norske enkeltpersonforetak. Les denne fila først.
+Gjenbrukbar norsk ERPNext-tilpasning for enkeltpersonforetak. Konsulentvirksomhet
+og SaaS-prosjekter er de første brukstilfellene. Les denne fila først.
 Maskinparken og de større driftsrutinene ligger i **janitor**-repoet
 (`~/git/janitor`), særlig `hosts/tower/fixes/enk-norge-app-og-byggekjede.md`,
 som forklarer hvorfor dette repoet ser ut som det gjør.
@@ -123,11 +124,22 @@ labelen «for konsistens».
 - Git-identitet: `85625055+Medpus@users.noreply.github.com`. **Aldri** jobb-adressen.
 - Varige lærdommer hører i janitor-repoet, ikke bare her.
 
-## Regnskap senere
+## Norske regnskapsfunksjoner
 
-Det norske innholdet skal utvikles i egne oppgaver. Ingenting er verifisert mot norske skatteregler
-ennå. Planlagt rekkefølge er kontoplan (NS 4102), MVA-håndtering, privatinnskudd og privat betalte
-kjøp, saldogrupper og avskrivninger, fakturanummerering og sporbarhet, og til slutt SAF-T-eksport.
-ERPNext ut av boksen har ingen norsk kontoplan. Behandle derfor systemet som et utviklingsprosjekt.
-Bruk fiktive bilag og et separat testsite når regnskapsfunksjoner senere testes, og avstem mot
-eksport før noe vurderes for produksjon.
+Les [regelgrunnlaget](docs/norske-enk-krav.md) og [utviklingsplanen](docs/enk-produktplan.md)
+før regnskapsarbeid. Krav og lokal ERPNext-kode er undersøkt 2026-09-17, men norske
+regnskapsfunksjoner er ennå ikke implementert eller verifisert med bilag.
+
+Gjenbruk ERPNexts fakturaer, betalinger og hovedbok. Norsk kontoplan, MVA-regler,
+eiertransaksjoner, saldogrupper og rapportmapping hører i denne appen. Avklar lisens for
+kontoplan/kodelister før kopiering. SAF-T, kontrollspor, fakturanummerering og arkiv skal
+inngå før ordinær bokføring tas i bruk; SAF-T er ikke en valgfri sluttfase.
+
+Skattemelding, MVA-melding og SAF-T er forskjellige leveranser. Ikke lov direkte innsending
+uten en verifisert integrasjon. Regler, satser og skjema må knyttes til riktig inntektsår.
+Bruk fiktive bilag og separat testsite, test eksakte terskler og avstem eksport mot hovedbok.
+Virksomhetstype og registreringsstatus må avklares før automatiske skatteregler velges.
+Foretaksnavn, organisasjonsnummer, eier, bank og avgiftsstatus skal være konfigurasjon per
+foretak, aldri hardkodet. Gjenbruk også ERPNexts prosjekt-, time- og
+abonnementsfunksjoner der de dekker behovet. Støtte for andre bransjer skal være eksplisitt;
+en generell ENK-modul betyr ikke at alle særregler allerede er dekket.

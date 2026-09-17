@@ -1,7 +1,8 @@
 # ENK Norge
 
-Norsk tilpasning av ERPNext for norske enkeltpersonforetak: kontoplan, MVA, privatinnskudd
-og uttak, saldogrupper og SAF-T. Alt norsk bor her; ERPNext selv røres aldri.
+Gjenbrukbar norsk tilpasning av ERPNext for enkeltpersonforetak: kontoplan, MVA,
+privatinnskudd og uttak, saldogrupper og SAF-T. Konsulenttjenester og SaaS er de første
+brukstilfellene. Alt norsk bor her; ERPNext selv røres aldri.
 
 ## Grunnregelen
 
@@ -48,11 +49,17 @@ Riktig løkke:
 
 ## Status
 
-Skjelettet er generert med `bench new-app` fra `frappe/erpnext:v16.35.0`. Selve det norske
-innholdet er ikke skrevet ennå. Planlagt rekkefølge er kontoplan (NS 4102), MVA, privatinnskudd
-og privat betalte kjøp, saldogrupper og avskrivninger, fakturanummerering og sporbarhet, og til
-slutt SAF-T. Planen er ikke verifisert mot norske skatteregler. Se janitor-repoet,
-`hosts/tower/fixes/erpnext-oppsett.md`, for hvorfor dette finnes.
+Skjelettet er generert med `bench new-app` fra `frappe/erpnext:v16.35.0`. Norske
+regnskapsfunksjoner er ikke implementert ennå. Regelverket og ERPNexts dekning er undersøkt
+2026-09-17:
+
+- [Norske ENK-krav](docs/norske-enk-krav.md): bokføring, MVA, eiendeler, skattemelding og kilder.
+- [Utviklingsplan](docs/enk-produktplan.md): gjenbruk av ERPNext, enkel arbeidsflyt,
+  integrasjoner og tester før reell bruk.
+
+Kontrollspor, fakturakrav, arkiv og SAF-T inngår i grunnlaget før ordinær bokføring.
+Direkte innsending av skattemelding er en egen integrasjon. Se janitor-repoet,
+`hosts/tower/fixes/erpnext-oppsett.md`, for driftsbakgrunnen.
 
 ## Lisens
 
