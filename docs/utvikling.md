@@ -81,16 +81,27 @@ bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench version
 bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh migrate
 ```
 
-Appen har ikke tester ennå. Et testløp uten tester verifiserer ikke regnskapsfunksjonalitet.
-`test.localhost` er et eget site for automatiserte tester. Opprett det én gang på en ny maskin:
+Regnskapstestene bruker egne fiktive foretak og tilbakefører databasetransaksjonene.
+Den samlede runneren nekter å kjøre på andre sites enn `test.localhost`. Opprett det
+én gang på en ny maskin:
 
 ```bash
 bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench new-site test.localhost \
   --mariadb-user-host-login-scope=% --db-root-username root --db-root-password 123 \
   --admin-password admin --install-app erpnext --install-app enk_norge
 bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost set-config allow_tests true
-bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost run-tests --app enk_norge
 bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost execute enk_norge.tests.runner.run
+```
+
+Kjør migrering før testene når metadata eller hooks er endret. Testene bygger på den
+pinnede ERPNext-versjonen og omfatter ekte dokumenter og hovedbok, i tillegg til rene
+beregninger. Resultat og avgrensninger står i [implementering og verifisering](implementering.md).
+
+For en avgrenset kontroll kan runneren få modulnavn:
+
+```bash
+bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh bench --site test.localhost execute \
+  enk_norge.tests.runner.run --kwargs '{"modules":["test_billing","test_access"]}'
 ```
 
 Når benchen har flere lokale sites, skal `serve_default_site` være `false` og `default_site` være

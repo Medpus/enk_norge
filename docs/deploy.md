@@ -33,6 +33,16 @@ bash ~/git/janitor/hosts/tower/scripts/erpnext-deploy.sh v16-<sha> ghcr.io/medpu
 bash ~/git/janitor/hosts/tower/scripts/erpnext-deploy.sh v16-<sha>
 ```
 
+Scriptet finnes i den lokale janitor-klonen, men er ikke nødvendigvis installert på Tower.
+Da kjøres samme script over SSH fra Nobara:
+
+```bash
+ssh root@server.example 'bash -s -- v16-<sha>' \
+  < ~/git/janitor/hosts/tower/scripts/erpnext-deploy.sh
+```
+
+Kontroller scriptet før kjøring. Denne flyten trenger ingen endring i janitor-repoet.
+
 Scriptet gjør, i rekkefølge:
 
 1. `bench backup --with-files` — full backup før noe røres.
@@ -69,3 +79,25 @@ eller image-lag.
 `bench version` i Actions-sammendraget er en ekstra, menneskelesbar kontroll. Taggen `v16` er
 fortsatt flytende og er kun en bekvemmelighetspeker. Produksjon bruker alltid den eksakte
 `v16-<sha>`-taggen i `.env`.
+
+## PDF når Cloudflare Access beskytter appen
+
+For ENK-fakturaer kan serveren hente statiske utskriftsressurser fra en intern origin.
+På Tower er den `http://erpnext-frontend:8080`; frontend setter site-headeren til
+`erp.example.com`. Konfigurasjonen er per site:
+
+```bash
+# Kjøres i backend-containerens bench.
+bench --site erp.example.com set-config enk_pdf_asset_origin http://erpnext-frontend:8080
+bench --site erp.example.com clear-cache
+```
+
+Dette gjelder PDF-nedlasting av ENK-salgsfakturaer. Appen skriver om egne
+`/assets/`-ressurser i utskrifts-HTML før PDF-generering. Offentlige lenker og
+`host_name` endres ikke, og innloggingscookies videresendes ikke til intern origin.
+Serverens innstilling styrer origin; klienten kan ikke velge den i PDF-kallet.
+
+Kontroller at den interne frontend-adressen returnerer CSS med HTTP 200 fra backend,
+at PDF-en har riktig stil, og at offentlig URL fortsatt krever Access. En PDF-header
+alene beviser ikke at stilfilene ble hentet. Direkte kall til Frappes interne
+`get_print(as_pdf=True)` og andre dokumenttyper går fortsatt gjennom standardflyten.

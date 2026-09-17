@@ -18,6 +18,7 @@ def run(modules=None):
 		"test_access",
 		"test_banking",
 		"test_billing",
+		"test_printing",
 		"test_currency",
 		"test_deferrals",
 		"test_settlement",

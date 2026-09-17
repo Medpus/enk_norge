@@ -51,8 +51,14 @@ Sluttkontroll lokalt:
 - Rene Python-tester uten Frappe: 61 besto, 24 integrasjonstester ble eksplisitt hoppet over.
 - `ruff check`, Python-kompilering, JavaScript-syntaks og `git diff --check` besto.
 - `bench migrate` på `dev.localhost`, `test.localhost` og `onboarding.localhost` besto.
+- PDF-rettelsen har seks egne tester. Samlet kontroll av PDF, bilagsflyt og rettigheter
+  besto med 32 av 32 tester, fulgt av ny migrering på dev.
 - Browseren kjører med `nb-NO`. Årsrapporten viser korrekte NOK-beløp; den trenger ingen
   innsprøytet locale-fallback.
+
+PDF-nedlastingen er også prøvd via ERPNexts HTTP-endepunkt med en bokført, fiktiv faktura.
+Den ga HTTP 200 og én A4-side. Visuell kontroll bekreftet stilfiler, tabell, datoer og
+beløpet `kr 1.500,00`. Testen bruker intern ressursadresse slik produksjon trenger bak Access.
 
 Saldogruppedialogen er også kjørt mot backend i nettleseren: et fiktivt aktivert kjøp på
 1 200 kroner ga en saldogruppe med riktig kildebilag og 360 kroner i avskrivning.
@@ -60,7 +66,12 @@ Saldogruppedialogen er også kjørt mot backend i nettleseren: et fiktivt aktive
 360 kroner. Driftsmiddelavgang er integrasjonstestet i backend; dialogen er kontrollert
 visuelt, men det er ikke opprettet avgang gjennom nettleseren.
 
-CI-bygget og produksjonsverifiseringen føres her når de er fullført. Lokale testresultater
+[CI-kjøring 35280085766](https://github.com/Medpus/enk_norge/actions/runs/35280085766)
+besto for `35dec3fa517b1d6cc0913f15364d60dce580a5e6`. Den kjørte de rene testene,
+kontrollerte wheel-innholdet, bygget og publiserte imaget, og verifiserte alle tre
+kildecommittene i det nedlastede imaget.
+
+Produksjonsverifiseringen føres her etter deploy. Lokale testresultater og et grønt bygg
 alene betyr ikke at en versjon er satt i produksjon.
 
 ## Avgrensninger
