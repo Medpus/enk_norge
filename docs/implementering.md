@@ -36,7 +36,9 @@ Testene omfatter blant annet rettigheter mellom foretak, endrede kildebilag, dup
 stengte perioder og avstemming mot hovedbok. Rene beregningstester kjører også i CI.
 
 Veiviseren er gjennomført fra tomt site. På desktop og mobil er påkrevde felt,
-fullføring og åpning av ENK-siden kontrollert. En faktisk faktura-PDF er hentet og
+fullføring og åpning av ENK-siden kontrollert. Avslutningen er kjørt på nytt fra et tomt
+`dev.localhost`: `desktop:home_page` ble `enk-norge`, `setup_complete` ble satt, og Frappes
+egen bootrutine leverte ENK-siden som startside. Systemspråket ble `nb`. En faktisk faktura-PDF er hentet og
 verifisert som PDF. Full backup av testsite er gjenopprettet på isolert site; database,
 vedlegg og signert regnskapsutkast er kontrollert etter gjenoppretting.
 
@@ -46,7 +48,7 @@ Gjenoppretting i produksjon er ikke brukt som test.
 
 Sluttkontroll lokalt:
 
-- Samlet suite: 156 av 156 testtilfeller besto uten hoppede tester. Abonnementsflyten
+- Samlet suite: 168 av 168 testtilfeller besto uten hoppede tester. Abonnementsflyten
   er i tillegg kontrollert fra opprettelse med start i dag til neste sammenhengende periode.
 - Rene Python-tester uten Frappe: 61 besto, 24 integrasjonstester ble eksplisitt hoppet over.
 - `ruff check`, Python-kompilering, JavaScript-syntaks og `git diff --check` besto.
