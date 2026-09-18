@@ -326,7 +326,8 @@ def complete_first_run(data):
 
 	args = frappe._dict(
 		country="Norway",
-		language="nb",
+		# Frappe slår opp språket på language_name, ikke på koden. "nb" alene gir engelsk.
+		language=frappe.db.get_value("Language", "nb", "language_name"),
 		currency="NOK",
 		timezone="Europe/Oslo",
 		company_name=data.company_name,
