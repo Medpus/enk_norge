@@ -1,0 +1,15 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: ENK Norge\n"
+"Language: nb\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "ENK Bank Import"
+msgstr "Bankimport"
+
+msgid "ENK Settings"
+msgstr "Foretaksinnstillinger"
+
+msgid "ENK Settlement"
+msgstr "Oppgjør fra betalingsformidler"

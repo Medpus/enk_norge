@@ -17,6 +17,11 @@ Kontroller tidligere fakturaer og regnskap før du bekrefter historikken. Eksist
 blir ikke hentet automatisk fra et annet system. ENK-siden ligger på `/app/enk-norge`;
 ERPNext kan endre adressen til `/desk/enk-norge`.
 
+Velg «Oversikt» i ENK Norge-menyen for daglig arbeid. Der lager du nye kjøp og
+salgsfakturaer som utkast. «Bankimport» viser importerte bankfiler, «Oppgjør fra
+betalingsformidler» viser oppgjør som er registrert, og «Foretaksinnstillinger»
+inneholder regnskapsoppsettet. Du trenger ikke åpne disse for å lage ditt første bilag.
+
 ## Før et kjøp
 
 Velg «Nytt kjøp». Oppgi leverandør, bilagsnummer, dato, formål og beløpet på leverandørens

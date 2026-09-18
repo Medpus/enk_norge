@@ -1,7 +1,7 @@
 frappe.pages["enk-norge"].on_page_load = function (wrapper) {
 	frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("ENK Norge"),
+		title: __("Oversikt"),
 		single_column: true,
 	});
 

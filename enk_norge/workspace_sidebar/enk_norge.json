@@ -1,0 +1,53 @@
+{
+ "app": "enk_norge",
+ "doctype": "Workspace Sidebar",
+ "header_icon": "accounting",
+ "items": [
+  {
+   "icon": "home",
+   "label": "Oversikt",
+   "link_to": "enk-norge",
+   "link_type": "Page",
+   "type": "Link"
+  },
+  {
+   "icon": "receipt-text",
+   "label": "Salgsfakturaer",
+   "link_to": "Sales Invoice",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "icon": "receipt",
+   "label": "Kjøp",
+   "link_to": "Purchase Invoice",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "icon": "landmark",
+   "label": "Bankimport",
+   "link_to": "ENK Bank Import",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "icon": "wallet-cards",
+   "label": "Oppgjør fra betalingsformidler",
+   "link_to": "ENK Settlement",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "icon": "settings",
+   "label": "Foretaksinnstillinger",
+   "link_to": "ENK Settings",
+   "link_type": "DocType",
+   "type": "Link"
+  }
+ ],
+ "module": "ENK Norge",
+ "name": "ENK Norge",
+ "standard": 1,
+ "title": "ENK Norge"
+}
