@@ -15,6 +15,7 @@ def run(modules=None):
 		"test_saft",
 		"test_posting_contract",
 		"test_workflows",
+		"test_setup",
 		"test_access",
 		"test_banking",
 		"test_billing",

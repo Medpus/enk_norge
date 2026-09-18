@@ -3,6 +3,7 @@
 import re
 
 import frappe
+from frappe.desk.page.setup_wizard.setup_wizard import disable_future_access
 from frappe.utils import cint, getdate
 
 # Egen inndeling og egne kontonavn. Dette er ikke en gjengivelse av NS 4102.
@@ -124,6 +125,33 @@ def get_settings(company, write=False):
 	settings = frappe.get_doc("ENK Settings", company)
 	settings.check_permission("write" if write else "read")
 	return settings
+
+
+ENK_HOME_PAGE = "enk-norge"
+
+
+def finish_first_run():
+	"""Bruk Frappes egen avslutning før ENKs første landingsside settes."""
+	# complete_first_run har allerede slått på app-flaggene i samme request.
+	# Tøm request-cachen slik at disable_future_access leser dem på nytt.
+	frappe.clear_cache()
+	disable_future_access()
+	frappe.db.set_default("desktop:home_page", ENK_HOME_PAGE)
+	frappe.clear_cache()
+
+
+def repair_completed_setup_home_page():
+	"""Reparer bare ENK-siter som er ferdige, men fortsatt peker på veiviseren."""
+	if (
+		not frappe.is_setup_complete()
+		or not frappe.db.count("Company")
+		or not frappe.db.count("ENK Settings")
+		or frappe.db.get_default("desktop:home_page") != "setup-wizard"
+	):
+		return False
+	frappe.db.set_default("desktop:home_page", ENK_HOME_PAGE)
+	frappe.clear_cache()
+	return True
 
 
 @frappe.whitelist()
@@ -337,6 +365,5 @@ def complete_first_run(data):
 	user.insert()
 	for app in ("frappe", "erpnext", "enk_norge"):
 		enable_setup_wizard_complete(app)
-	frappe.db.set_single_value("System Settings", "setup_complete", int(frappe.is_setup_complete()))
-	frappe.clear_cache()
+	finish_first_run()
 	return result

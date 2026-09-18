@@ -1,12 +1,14 @@
 """Virkelige Frappe-dokumenter og hovedbok på et separat testsite."""
 
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 import frappe
+from frappe.boot import add_home_page
 
 from enk_norge.api import create_purchase, create_sale, pay_purchase_privately
-from enk_norge.setup import create_company, get_settings
+from enk_norge.setup import create_company, get_settings, repair_completed_setup_home_page
 
 
 class WorkflowsTest(unittest.TestCase):
@@ -107,6 +109,19 @@ class WorkflowsTest(unittest.TestCase):
 				attached_to_name=doc.name,
 			)
 		).insert()
+
+	def test_completed_setup_repairs_wizard_home_page_for_boot(self):
+		frappe.db.set_default("desktop:home_page", "setup-wizard")
+		frappe.clear_cache()
+		with patch.object(frappe, "is_setup_complete", return_value=True):
+			self.assertTrue(repair_completed_setup_home_page())
+
+		bootinfo = frappe._dict()
+		docs = []
+		add_home_page(bootinfo, docs)
+
+		self.assertEqual(bootinfo.home_page, "enk-norge")
+		self.assertEqual(docs[0].name, "enk-norge")
 
 	def test_sale_no_vat_and_receivable(self):
 		doc = self.sale()

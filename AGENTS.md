@@ -117,6 +117,9 @@ labelen «for konsistens».
 - `bench new-site` skrur **av** scheduleren. I produksjon må den skrus på igjen.
 - `developer_mode` må være på i dev, ellers havner nye DocTypes bare i databasen og ikke som
   filer i appen.
+- Førstegangsoppsettet må avsluttes med Frappes `disable_future_access()` og en gyldig
+  `desktop:home_page`. Bare å sette `setup_complete` etterlater veiviseren som startside
+  og kan gi en omlastingsløkke på `/desk`. Test ny innlogging etter oppsett, også som vanlig bruker.
 - Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.
   ENK-fakturaens nedlasting bruker site-innstillingen `enk_pdf_asset_origin` for interne
   statiske ressurser. Se deploy-veiledningen. Ikke sett offentlig `host_name` til en intern URL.
