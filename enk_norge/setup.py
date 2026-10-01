@@ -128,6 +128,8 @@ def get_settings(company, write=False):
 
 
 ENK_HOME_PAGE = "enk-norge"
+# Eieren fører alt selv. Kunder krever Sales User og leverandører Purchase Master Manager i ERPNext.
+OWNER_ROLES = ("System Manager", "Accounts Manager", "Accounts User", "Sales User", "Purchase Master Manager")
 
 
 def finish_first_run():
@@ -136,8 +138,19 @@ def finish_first_run():
 	# Tøm request-cachen slik at disable_future_access leser dem på nytt.
 	frappe.clear_cache()
 	disable_future_access()
+	quiet_desk()
 	frappe.db.set_default("desktop:home_page", ENK_HOME_PAGE)
 	frappe.clear_cache()
+
+
+def quiet_desk():
+	"""Skjul ERPNexts lagerveileder og versjonsvarsler. ENK-siden er brukerens startpunkt."""
+	for field, value in (
+		("enable_onboarding", 0),
+		("disable_system_update_notification", 1),
+		("disable_change_log_notification", 1),
+	):
+		frappe.db.set_single_value("System Settings", field, value)
 
 
 def repair_completed_setup_home_page():
@@ -161,6 +174,35 @@ def list_companies():
 		dict(company=c.name, configured=bool(frappe.db.exists("ENK Settings", c.name)))
 		for c in frappe.get_list("Company", fields=["name"], filters={"country": "Norway"})
 	]
+
+
+@frappe.whitelist()
+def company_profile(company):
+	settings = get_settings(company)
+	return dict(
+		company=company,
+		organization_number=settings.organization_number,
+		start_date=str(settings.start_date),
+		address_line=settings.address_line,
+		postal_code=settings.postal_code,
+		city=settings.city,
+		phone=settings.phone,
+		bank_name=settings.bank_name,
+		bank_account=settings.bank_account,
+		vat_registered=bool(settings.vat_registered),
+		vat_registration_date=str(settings.vat_registration_date) if settings.vat_registration_date else None,
+		has_postings=bool(frappe.db.exists("GL Entry", {"company": company})),
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def update_vat_registration(company, vat_registered, vat_registration_date=None):
+	settings = get_settings(company, write=True)
+	settings.vat_registered = cint(vat_registered)
+	settings.vat_registration_date = vat_registration_date if settings.vat_registered else None
+	# ENK Settings avviser selv omskriving av en etablert registrering etter bokføring.
+	settings.save()
+	return company_profile(company)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -360,7 +402,7 @@ def complete_first_run(data):
 			send_welcome_email=0,
 			new_password=data.password,
 			language="nb",
-			roles=[{"role": r} for r in ["System Manager", "Accounts Manager", "Accounts User"]],
+			roles=[{"role": r} for r in OWNER_ROLES],
 		)
 	)
 	user.insert()

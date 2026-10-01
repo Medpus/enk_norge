@@ -264,8 +264,9 @@ def create_purchase(data):
 			predominantly_income_producing=True,
 			as_of=posting,
 		)
-		if assessment.treatment == AssetTreatment.ACTIVATE_AND_DEPRECIATE and category != "asset":
-			frappe.throw("Utstyret skal aktiveres. Velg kategorien eiendel.")
+		# Regelmotoren avgjør om utstyret skal aktiveres, så brukeren trenger bare ett utstyrsvalg.
+		if assessment.treatment == AssetTreatment.ACTIVATE_AND_DEPRECIATE:
+			category = "asset"
 	doc = frappe.get_doc(
 		dict(
 			doctype="Purchase Invoice",

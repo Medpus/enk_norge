@@ -285,6 +285,8 @@ setup_wizard_requires = 'assets/enk_norge/js/enk_setup.js'
 
 jinja = {'methods': ['enk_norge.printing.enk_invoice_issuer']}
 
+app_include_js = ['/assets/enk_norge/js/enk_actions.js']
+
 doctype_js = {
 	'Sales Invoice': 'public/js/invoice.js',
 	'Purchase Invoice': 'public/js/invoice.js',

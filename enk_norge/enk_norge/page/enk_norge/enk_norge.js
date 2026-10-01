@@ -10,6 +10,26 @@ frappe.pages["enk-norge"].on_page_load = function (wrapper) {
 	});
 };
 
+frappe.pages["enk-norge"].on_page_show = function (wrapper) {
+	use_enk_sidebar(wrapper);
+	wrapper.enk_norge?.route();
+};
+
+function use_enk_sidebar(wrapper) {
+	// Startsiden har tom rute, og da velger Frappe en vilkårlig modulmeny etter at siden vises.
+	// Vi setter ENK-menyen etter Frappes eget valg, så lenge ENK-siden er den aktive siden.
+	const apply = () => {
+		const sidebar = frappe.app?.sidebar;
+		if (frappe.container?.page !== wrapper || !sidebar || !frappe.boot.workspace_sidebar_item?.["enk norge"]) return;
+		if (sidebar.sidebar_title !== "ENK Norge") sidebar.setup("ENK Norge");
+	};
+	if (!wrapper.enk_sidebar_bound) {
+		wrapper.enk_sidebar_bound = true;
+		frappe.router.on("change", () => setTimeout(apply, 0));
+	}
+	setTimeout(apply, 0);
+}
+
 class EnkNorgePage {
 	constructor(wrapper) {
 		this.wrapper = $(wrapper);
@@ -25,19 +45,42 @@ class EnkNorgePage {
 			method: "enk_norge.setup.list_companies",
 			callback: (response) => {
 				this.companies = response.message || [];
-				this.render();
+				this.loaded = true;
+				this.route();
 			},
 			error: () => this.render_load_error(),
 		});
 	}
 
-	render() {
-		if (!this.companies.length) {
-			this.render_onboarding();
+	route() {
+		if (!this.loaded) return;
+		// Sidemenyen kan bare lenke til selve siden, så MVA-lenken sender vis=mva som parameter.
+		const target = frappe.route_options?.vis || frappe.utils.get_query_params().vis;
+		if (target === "mva") {
+			// Erstatt historikken, ellers sender Tilbake-knappen brukeren hit igjen.
+			frappe.route_options = null;
+			window.history.replaceState(null, "", "/desk/enk-norge/mva");
+			frappe.router.route();
 			return;
 		}
+		const [, view, doctype, name] = frappe.get_route();
+		if (!this.companies.length) {
+			this.render_onboarding();
+		} else if (view === "bilag" && doctype && name) {
+			this.render_document(doctype, name);
+		} else if (view === "mva") {
+			this.render_vat(doctype);
+		} else {
+			this.render_dashboard();
+		}
+	}
 
-		this.render_dashboard();
+	selected_company() {
+		return this.companies.find((company) => company.configured) || this.companies[0];
+	}
+
+	open_document(doctype, name) {
+		frappe.set_route("enk-norge", "bilag", doctype, name);
 	}
 
 	render_loading() {
@@ -292,7 +335,8 @@ class EnkNorgePage {
 	}
 
 	render_dashboard() {
-		const selected = this.companies.find((company) => company.configured) || this.companies[0];
+		const selected = this.selected_company();
+		this.list_state = this.list_state || { kind: "all", status: "", search: "" };
 		this.render_dashboard_content(selected, null);
 		if (selected.configured) {
 			this.load_dashboard(selected);
@@ -303,122 +347,251 @@ class EnkNorgePage {
 		frappe.call({
 			method: "enk_norge.api.dashboard",
 			args: { company: company.company },
-			callback: (response) => this.render_dashboard_content(company, response.message || {}),
+			callback: (response) => {
+				this.dashboard_data = response.message || {};
+				this.render_dashboard_content(company, this.dashboard_data);
+			},
 			error: () => this.render_dashboard_content(company, { error: true }),
 		});
 	}
 
 	render_dashboard_content(selected, dashboard) {
-		this.page.set_primary_action(__("Ny salgsfaktura"), () => {
-			this.open_sale_dialog(selected.company);
-		});
-		const status = !selected.configured
-			? __("Foretaket trenger fortsatt norsk oppsett.")
-			: dashboard === null
-				? __("Henter kladder og ubetalte fakturaer.")
-				: __("Regnskap for {0}", [selected.company]);
+		const company = selected.company;
+		this.page.clear_actions();
+		this.page.set_title(__("Oversikt"));
+		if (selected.configured) {
+			this.page.set_primary_action(__("Ny faktura"), () => this.open_sale_dialog(company));
+		}
 		this.body.html(`
 			<section class="enk-dashboard" aria-labelledby="enk-dashboard-title">
 				<header class="enk-dashboard-header">
 					<div>
-						<h2 id="enk-dashboard-title">${frappe.utils.escape_html(selected.company)}</h2>
-						<p>${status}</p>
+						<h2 id="enk-dashboard-title">${frappe.utils.escape_html(company)}</h2>
+						<p>${this.company_status(selected, dashboard)}</p>
 					</div>
-					<a class="btn btn-default btn-sm" href="#Form/Company/${encodeURIComponent(selected.company)}">
-						${__("Åpne foretak")}
-					</a>
+					${selected.configured ? `<button class="btn btn-default btn-sm" type="button" data-action="company-profile">${__("Foretak og MVA")}</button>` : ""}
 				</header>
-				<div class="enk-dashboard-main">
-					${this.dashboard_overview(dashboard)}
-					<section class="enk-standard-actions" aria-labelledby="enk-standard-title">
-						<h3 id="enk-standard-title">${__("Registrer et nytt bilag")}</h3>
-						<p>${__("Salg og kjøp opprettes som kladd. Kontroller vedlegg og innhold, og bokfør dokumentet i ERPNext når det er klart.")}</p>
-						<div class="enk-action-row">
-							<button class="btn btn-default" type="button" data-action="new-sale">${__("Ny salgsfaktura")}</button>
-							<button class="btn btn-default" type="button" data-action="invoice-timesheet">${__("Fakturer timer")}</button>
-							<button class="btn btn-default" type="button" data-action="invoice-subscription">${__("Fakturer abonnement")}</button>
-							<button class="btn btn-default" type="button" data-action="new-purchase">${__("Nytt kjøp")}</button>
-							<a class="btn btn-default" href="#List/Sales Invoice/List">${__("Se fakturaer")}</a>
-							<a class="btn btn-default" href="#List/Purchase Invoice/List">${__("Se kjøp")}</a>
-						</div>
-						<h3 class="enk-actions-heading">${__("Avstemming og rapportering")}</h3>
+				${selected.configured ? `
+					<div class="enk-dashboard-main">
+						${this.dashboard_overview(dashboard)}
+						<section class="enk-standard-actions" aria-labelledby="enk-standard-title">
+							<h3 id="enk-standard-title">${__("Ny registrering")}</h3>
+							<div class="enk-action-row enk-primary-actions">
+								<button class="btn btn-primary" type="button" data-action="new-sale">${__("Ny faktura")}</button>
+								<button class="btn btn-primary" type="button" data-action="new-purchase">${__("Nytt kjøp eller utgift")}</button>
+								<button class="btn btn-default" type="button" data-action="log-hours">${__("Før timer")}</button>
+							</div>
 							<div class="enk-action-row">
-								<button class="btn btn-default" type="button" data-action="import-bank">${__("Importer bankutskrift")}</button>
-								<button class="btn btn-default" type="button" data-action="new-settlement">${__("Registrer oppgjør fra betalingsformidler")}</button>
-								<button class="btn btn-default" type="button" data-action="owner-transfer">${__("Eierinnskudd eller uttak")}</button>
-							<a class="btn btn-default" href="#List/ENK VAT Return/List">${__("MVA-rapporter")}</a>
-							<button class="btn btn-default" type="button" data-action="build-year-report">${__("Lag årsrapport")}</button>
-							<a class="btn btn-default" href="#List/ENK Year Report/List">${__("Årsrapporter")}</a>
-							<button class="btn btn-default" type="button" data-action="export-saft">${__("Eksporter SAF-T")}</button>
-						</div>
-						<h3 class="enk-actions-heading">${__("Utstyr og saldogrupper")}</h3>
-						<div class="enk-action-row">
-							<button class="btn btn-default" type="button" data-action="tax-pool">${__("Opprett saldogruppe")}</button>
-							<button class="btn btn-default" type="button" data-action="open-tax-pools">${__("Åpne saldogrupper")}</button>
-							<button class="btn btn-default" type="button" data-action="depreciation-draft">${__("Lag avskrivningsutkast")}</button>
-							<button class="btn btn-default" type="button" data-action="asset-disposal">${__("Driftsmiddelavgang")}</button>
-						</div>
-					</section>
-				</div>
+								<button class="btn btn-default btn-sm" type="button" data-action="invoice-hours">${__("Fakturer timer")}</button>
+								<button class="btn btn-default btn-sm" type="button" data-action="invoice-subscription">${__("Fakturer abonnement")}</button>
+								<button class="btn btn-default btn-sm" type="button" data-action="new-customer">${__("Ny kunde")}</button>
+								<button class="btn btn-default btn-sm" type="button" data-action="new-supplier">${__("Ny leverandør")}</button>
+							</div>
+						</section>
+					</div>
+					${this.document_section()}
+					${this.more_section()}
+				` : `<div class="enk-dashboard-main">${this.dashboard_overview(undefined)}</div>`}
 			</section>
 		`);
-		this.body.find('[data-action="new-sale"]').on("click", () => this.open_sale_dialog(selected.company));
-		this.body.find('[data-action="invoice-timesheet"]').on("click", () => this.open_timesheet_invoice_dialog(selected.company));
-		this.body.find('[data-action="invoice-subscription"]').on("click", () => this.open_subscription_invoice_dialog(selected.company));
-		this.body.find('[data-action="new-purchase"]').on("click", () => {
-			this.open_purchase_dialog(selected.company);
+		this.bind_dashboard(company);
+		if (selected.configured) {
+			this.load_documents(company);
+		}
+	}
+
+	company_status(selected, dashboard) {
+		if (!selected.configured) return __("Foretaket trenger fortsatt norsk oppsett.");
+		if (dashboard === null) return __("Henter oversikten.");
+		if (!dashboard || dashboard.error) return "";
+		return dashboard.vat_registered ? __("MVA-registrert") : __("Ikke MVA-registrert");
+	}
+
+	bind_dashboard(company) {
+		const on = (action, handler) => this.body.find(`[data-action="${action}"]`).on("click", handler);
+		on("company-profile", () => this.open_company_profile_dialog(company));
+		on("new-sale", () => this.open_sale_dialog(company));
+		on("new-purchase", () => this.open_purchase_dialog(company));
+		on("log-hours", () => this.open_log_hours_dialog(company));
+		on("invoice-hours", () => this.open_invoice_hours_dialog(company));
+		on("invoice-subscription", () => this.open_subscription_invoice_dialog(company));
+		on("new-customer", () => this.open_customer_dialog(() => this.load_dashboard({ company, configured: true })));
+		on("new-supplier", () => this.open_supplier_dialog(() => {}));
+		on("vat", () => frappe.set_route("enk-norge", "mva"));
+		on("import-bank", () => this.open_bank_import_dialog(company));
+		on("new-settlement", () => this.open_settlement_dialog(company));
+		on("owner-transfer", () => this.open_owner_transfer_dialog(company));
+		on("build-year-report", () => this.open_year_report_dialog(company));
+		on("tax-pool", () => this.open_tax_pool_dialog(company));
+		on("open-tax-pools", () => frappe.set_route("List", "ENK Tax Pool", "List", { company, income_year: 2026 }));
+		on("depreciation-draft", () => this.open_created_draft(null, "enk_norge.year_end.create_depreciation_journal_entry_draft", { company, income_year: 2026 }));
+		on("asset-disposal", () => this.open_asset_disposal_dialog(company));
+		on("export-saft", () => this.open_saft_dialog(company));
+		this.body.find("[data-open-doctype]").on("click", (event) => {
+			event.preventDefault();
+			const target = $(event.currentTarget);
+			this.open_document(target.attr("data-open-doctype"), target.attr("data-open-name"));
 		});
-			this.body.find('[data-action="import-bank"]').on("click", () => this.open_bank_import_dialog(selected.company));
-			this.body.find('[data-action="new-settlement"]').on("click", () => this.open_settlement_dialog(selected.company));
-			this.body.find('[data-action="owner-transfer"]').on("click", () => this.open_owner_transfer_dialog(selected.company));
-		this.body.find('[data-action="build-year-report"]').on("click", () => this.open_year_report_dialog(selected.company));
-		this.body.find('[data-action="tax-pool"]').on("click", () => this.open_tax_pool_dialog(selected.company));
-		this.body.find('[data-action="open-tax-pools"]').on("click", () => frappe.set_route("List", "ENK Tax Pool", "List", { company: selected.company, income_year: 2026 }));
-		this.body.find('[data-action="depreciation-draft"]').on("click", () => this.open_created_draft(null, "enk_norge.year_end.create_depreciation_journal_entry_draft", { company: selected.company, income_year: 2026 }));
-		this.body.find('[data-action="asset-disposal"]').on("click", () => this.open_asset_disposal_dialog(selected.company));
-		this.body.find('[data-action="export-saft"]').on("click", () => this.open_saft_dialog(selected.company));
+		this.body.find("[data-list-kind]").on("click", (event) => {
+			this.list_state.kind = $(event.currentTarget).attr("data-list-kind");
+			this.load_documents(company);
+		});
+		this.body.find("[data-list-status]").on("click", (event) => {
+			const status = $(event.currentTarget).attr("data-list-status");
+			this.list_state.status = this.list_state.status === status ? "" : status;
+			this.load_documents(company);
+		});
+		let timer;
+		this.body.find(".enk-document-search").on("input", (event) => {
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				this.list_state.search = event.target.value;
+				this.load_documents(company);
+			}, 250);
+		});
+	}
+
+	document_section() {
+		const kinds = [["all", __("Alle")], ["sales", __("Salg")], ["purchases", __("Kjøp")], ["other", __("Betalinger og posteringer")]];
+		const statuses = [["draft", __("Kladder")], ["unpaid", __("Ubetalt")]];
+		const state = this.list_state;
+		return `<section class="enk-documents" aria-labelledby="enk-documents-title">
+			<header class="enk-documents-header">
+				<h3 id="enk-documents-title">${__("Bilag")}</h3>
+				<input class="form-control enk-document-search" type="search" value="${frappe.utils.escape_html(state.search)}"
+					placeholder="${__("Søk på nummer, kunde eller leverandør")}" aria-label="${__("Søk i bilag")}">
+			</header>
+			<div class="enk-document-filters" role="toolbar" aria-label="${__("Filtrer bilag")}">
+				${kinds.map(([value, label]) => `<button type="button" class="btn btn-xs ${state.kind === value ? "btn-primary" : "btn-default"}" data-list-kind="${value}" aria-pressed="${state.kind === value}">${label}</button>`).join("")}
+				<span class="enk-filter-divider" aria-hidden="true"></span>
+				${statuses.map(([value, label]) => `<button type="button" class="btn btn-xs ${state.status === value ? "btn-primary" : "btn-default"}" data-list-status="${value}" aria-pressed="${state.status === value}">${label}</button>`).join("")}
+			</div>
+			<div class="enk-document-table" aria-live="polite">
+				<div class="skeleton enk-loading-line"></div>
+			</div>
+		</section>`;
+	}
+
+	load_documents(company) {
+		const table = this.body.find(".enk-document-table");
+		const state = this.list_state;
+		this.body.find("[data-list-kind]").each((_, el) => {
+			const active = $(el).attr("data-list-kind") === state.kind;
+			$(el).toggleClass("btn-primary", active).toggleClass("btn-default", !active).attr("aria-pressed", active);
+		});
+		this.body.find("[data-list-status]").each((_, el) => {
+			const active = $(el).attr("data-list-status") === state.status;
+			$(el).toggleClass("btn-primary", active).toggleClass("btn-default", !active).attr("aria-pressed", active);
+		});
+		frappe.call({
+			method: "enk_norge.documents.list_documents",
+			args: { company, kind: state.kind, search: state.search, limit: 100 },
+			callback: (response) => {
+				const rows = (response.message || []).filter((row) => !state.status || row.status === state.status);
+				table.html(this.document_rows(rows));
+				table.find("[data-open-doctype]").on("click", (event) => {
+					event.preventDefault();
+					const target = $(event.currentTarget);
+					this.open_document(target.attr("data-open-doctype"), target.attr("data-open-name"));
+				});
+			},
+			error: () => table.html(`<p class="text-muted">${__("Kunne ikke hente bilagene. Last siden på nytt.")}</p>`),
+		});
+	}
+
+	document_rows(rows) {
+		if (!rows.length) {
+			const filtered = this.list_state.search || this.list_state.status || this.list_state.kind !== "all";
+			return `<div class="enk-empty">
+				<p>${filtered ? __("Ingen bilag passer med filteret.") : __("Ingen bilag ennå. Start med en faktura eller et kjøp.")}</p>
+			</div>`;
+		}
+		return `<ul class="enk-document-rows">${rows.map((row) => {
+			const amount = row.status === "unpaid" ? row.outstanding_amount : row.total;
+			return `<li><a href="/desk/enk-norge/bilag/${encodeURIComponent(row.doctype)}/${encodeURIComponent(row.name)}" data-open-doctype="${frappe.utils.escape_html(row.doctype)}" data-open-name="${frappe.utils.escape_html(row.name)}">
+				<span class="enk-row-main">
+					<span class="enk-row-party">${frappe.utils.escape_html(row.party || row.description || enk_doctype_label(row.doctype, row))}</span>
+					<span class="enk-row-meta">${enk_doctype_label(row.doctype, row)} · ${frappe.utils.escape_html(row.name)} · ${row.posting_date ? frappe.datetime.str_to_user(row.posting_date) : ""}</span>
+				</span>
+				<span class="enk-row-side">
+					<strong>${frappe.utils.escape_html(format_money(amount, row.currency))}</strong>
+					${enk_status_pill(row.status)}
+				</span>
+			</a></li>`;
+		}).join("")}</ul>`;
+	}
+
+	more_section() {
+		return `<section class="enk-more" aria-labelledby="enk-more-title">
+			<h3 id="enk-more-title">${__("Bank, rapporter og årsoppgjør")}</h3>
+			<div class="enk-more-groups">
+				<div>
+					<h4>${__("Bank og oppgjør")}</h4>
+					<div class="enk-action-row">
+						<button class="btn btn-default btn-sm" type="button" data-action="import-bank">${__("Importer bankutskrift")}</button>
+						<button class="btn btn-default btn-sm" type="button" data-action="new-settlement">${__("Utbetaling fra Stripe e.l.")}</button>
+						<button class="btn btn-default btn-sm" type="button" data-action="owner-transfer">${__("Innskudd eller uttak")}</button>
+					</div>
+				</div>
+				<div>
+					<h4>${__("Rapportering")}</h4>
+					<div class="enk-action-row">
+						<button class="btn btn-default btn-sm" type="button" data-action="vat">${__("MVA")}</button>
+						<button class="btn btn-default btn-sm" type="button" data-action="build-year-report">${__("Lag årsrapport")}</button>
+						<a class="btn btn-default btn-sm" href="/desk/enk-year-report">${__("Årsrapporter")}</a>
+						<button class="btn btn-default btn-sm" type="button" data-action="export-saft">${__("Eksporter SAF-T")}</button>
+					</div>
+				</div>
+				<div>
+					<h4>${__("Utstyr og avskrivning")}</h4>
+					<div class="enk-action-row">
+						<button class="btn btn-default btn-sm" type="button" data-action="tax-pool">${__("Opprett saldogruppe")}</button>
+						<button class="btn btn-default btn-sm" type="button" data-action="open-tax-pools">${__("Saldogrupper")}</button>
+						<button class="btn btn-default btn-sm" type="button" data-action="depreciation-draft">${__("Lag avskrivning")}</button>
+						<button class="btn btn-default btn-sm" type="button" data-action="asset-disposal">${__("Salg eller uttak av utstyr")}</button>
+					</div>
+				</div>
+			</div>
+		</section>`;
 	}
 
 	dashboard_overview(dashboard) {
 		if (dashboard === null) {
 			return `<section class="enk-state enk-overview-loading" aria-live="polite">
-				<h3>${__("Daglig oversikt")}</h3>
+				<h3>${__("Status")}</h3>
 				<div class="skeleton enk-loading-line"></div>
 				<div class="skeleton enk-loading-line short"></div>
 			</section>`;
 		}
 		if (dashboard?.error) {
 			return `<section class="enk-state" aria-live="polite">
-				<h3>${__("Daglig oversikt er ikke tilgjengelig")}</h3>
-				<p>${__("Kladder og ubetalte fakturaer kunne ikke hentes nå. Du kan fortsatt åpne standardlistene i ERPNext.")}</p>
+				<h3>${__("Oversikten er ikke tilgjengelig")}</h3>
+				<p>${__("Tallene kunne ikke hentes nå. Last siden på nytt.")}</p>
 			</section>`;
 		}
 		if (!dashboard) {
 			return `<section class="enk-state">
 				<h3>${__("Fullfør norsk oppsett")}</h3>
-				<p>${__("Dette foretaket mangler ENK-innstillinger. Åpne foretaket for videre oppsett.")}</p>
+				<p>${__("Dette foretaket mangler ENK-innstillinger.")}</p>
 			</section>`;
 		}
-
+		const drafts = (dashboard.draft_sales?.length || 0) + (dashboard.draft_purchases?.length || 0);
+		const unpaid = dashboard.unpaid_sales?.length || 0;
+		const todo = [
+			drafts ? `<li><button type="button" class="btn btn-link" data-list-status="draft">${drafts === 1 ? __("1 kladd venter på bokføring") : __("{0} kladder venter på bokføring", [drafts])}</button></li>` : "",
+			unpaid ? `<li><button type="button" class="btn btn-link" data-list-status="unpaid">${unpaid === 1 ? __("1 faktura er ikke betalt") : __("{0} fakturaer er ikke betalt", [unpaid])}</button></li>` : "",
+		].join("");
 		return `<section class="enk-overview" aria-labelledby="enk-overview-title">
-			<h3 id="enk-overview-title">${__("Daglig oversikt")}</h3>
+			<h3 id="enk-overview-title">${__("Status i år")}</h3>
 			${this.vat_threshold_notice(dashboard)}
-			<div class="enk-overview-counts enk-overview-amounts">
-				${this.overview_amount(__("Inntekter hittil"), dashboard.income)}
-				${this.overview_amount(__("Kostnader hittil"), dashboard.expenses)}
-				${this.overview_amount(__("Resultat hittil"), dashboard.result)}
-				${this.overview_amount(__("Bankbeholdning"), dashboard.bank_balance)}
-			</div>
-			${dashboard.bank_account_record ? `<a class="enk-bank-link" href="#Form/Bank Account/${encodeURIComponent(dashboard.bank_account_record)}">${__("Åpne bankkonto for avstemming")}</a>` : ""}
-			<div class="enk-overview-counts">
-				${this.overview_count(__("Kladder for salg"), dashboard.draft_sales?.length || 0)}
-				${this.overview_count(__("Kladder for kjøp"), dashboard.draft_purchases?.length || 0)}
-				${this.overview_count(__("Ubetalte fakturaer"), dashboard.unpaid_sales?.length || 0)}
-			</div>
-			${this.document_list(__("Salgskladder"), dashboard.draft_sales, "customer", "grand_total", "Sales Invoice")}
-			${this.document_list(__("Kjøpskladder"), dashboard.draft_purchases, "supplier", "grand_total", "Purchase Invoice")}
-			${this.document_list(__("Ubetalte fakturaer"), dashboard.unpaid_sales, "customer", "outstanding_amount", "Sales Invoice")}
-			${this.document_list(__("Fakturaer som må følges opp ved MVA-registrering"), dashboard.vat_followup, "customer", "grand_total", "Sales Invoice")}
+			<dl class="enk-overview-amounts">
+				${this.overview_amount(__("Inntekter"), dashboard.income)}
+				${this.overview_amount(__("Kostnader"), dashboard.expenses)}
+				${this.overview_amount(__("Resultat"), dashboard.result)}
+				${this.overview_amount(__("Bankkonto i regnskapet"), dashboard.bank_balance)}
+			</dl>
+			${todo ? `<ul class="enk-todo">${todo}</ul>` : `<p class="enk-todo-clear">${__("Ingen kladder eller ubetalte fakturaer.")}</p>`}
+			${this.document_list(__("Følg opp ved MVA-registrering"), dashboard.vat_followup, "customer", "grand_total", "Sales Invoice")}
 		</section>`;
 	}
 
@@ -430,17 +603,13 @@ class EnkNorgePage {
 		const date = frappe.datetime.str_to_user(crossing.date);
 		const basis = frappe.utils.escape_html(format_nok(crossing.basis));
 		return `<section class="enk-vat-threshold-notice" aria-label="${__("MVA-avklaring")}">
-			<h4>${__("MVA-registrering må avklares")}</h4>
-			<p>${__("Omsetningen passerte {0} {1}. Avklar alle berørte salg fra denne datoen før videre bokføring.", [date, basis])}</p>
+			<h4>${__("Du har passert MVA-grensen")}</h4>
+			<p>${__("Omsetningen passerte {0} {1}. Meld foretaket inn i Merverdiavgiftsregisteret, og registrer datoen under «Foretak og MVA».", [date, basis])}</p>
 		</section>`;
 	}
 
-	overview_count(label, value) {
-		return `<div><strong>${value}</strong><span>${label}</span></div>`;
-	}
-
 	overview_amount(label, value) {
-		return `<div><strong>${frappe.utils.escape_html(format_nok(value))}</strong><span>${label}</span></div>`;
+		return `<div><dt>${label}</dt><dd>${frappe.utils.escape_html(format_nok(value))}</dd></div>`;
 	}
 
 	document_list(title, documents = [], party_field, amount_field, doctype) {
@@ -452,108 +621,605 @@ class EnkNorgePage {
 				const name = frappe.utils.escape_html(document.name);
 				const party = frappe.utils.escape_html(document[party_field] || "");
 				const amount = frappe.utils.escape_html(format_nok(document[amount_field]));
-				return `<li><a href="#Form/${doctype}/${encodeURIComponent(document.name)}"><span>${name}</span><span>${party}</span><strong>${amount}</strong></a></li>`;
+				return `<li><a href="/desk/enk-norge/bilag/${encodeURIComponent(doctype)}/${encodeURIComponent(document.name)}" data-open-doctype="${doctype}" data-open-name="${name}"><span>${name}</span><span>${party}</span><strong>${amount}</strong></a></li>`;
 			})
 			.join("");
 		return `<div class="enk-document-list"><h4>${title}</h4><ul>${rows}</ul></div>`;
 	}
 
+	vat_periods(profile) {
+		// Ordinær melding gjelder tomånedsterminer etter registrering. Uregistrerte rapporterer
+		// omvendt avgiftsplikt per kvartal. Serveren kontrollerer termin og regler uansett.
+		const today = frappe.datetime.get_today();
+		const ordinary = profile.vat_registered && profile.vat_registration_date;
+		const months = ordinary ? [2, 4, 6, 8, 10, 12] : [3, 6, 9, 12];
+		const names = ordinary
+			? [__("januar–februar"), __("mars–april"), __("mai–juni"), __("juli–august"), __("september–oktober"), __("november–desember")]
+			: [__("1. kvartal"), __("2. kvartal"), __("3. kvartal"), __("4. kvartal")];
+		return months.map((month, index) => {
+			const end = frappe.datetime.obj_to_str(new Date(2026, month, 0));
+			const start = frappe.datetime.obj_to_str(new Date(2026, month - (ordinary ? 2 : 3), 1));
+			return { end, start, label: `${names[index]} 2026`, report_type: ordinary ? "Ordinary" : "Reverse charge unregistered" };
+		}).filter((period) => period.start <= today && (!ordinary || period.end >= profile.vat_registration_date));
+	}
+
+	async render_vat(period_end) {
+		const company = this.selected_company().company;
+		this.page.clear_actions();
+		this.page.set_title(__("MVA"));
+		const escape = frappe.utils.escape_html;
+		const profile = (await frappe.call({ method: "enk_norge.setup.company_profile", args: { company } })).message;
+		const periods = this.vat_periods(profile);
+		const ordinary = periods[0]?.report_type === "Ordinary";
+		const selected = periods.find((period) => period.end === period_end) || periods[periods.length - 1];
+		this.body.html(`
+			<section class="enk-bilag enk-vat" aria-labelledby="enk-vat-title">
+				<button class="btn btn-link enk-back" type="button" data-action="back">${frappe.utils.icon("arrow-left", "sm")} ${__("Oversikt")}</button>
+				<header class="enk-bilag-header"><div>
+					<h2 id="enk-vat-title">${ordinary ? __("MVA-melding") : __("Omvendt avgiftsplikt for kjøp fra utlandet")}</h2>
+					<p>${ordinary
+						? __("Melding for hver tomånedstermin etter at foretaket ble MVA-registrert.")
+						: __("Foretaket er ikke MVA-registrert. Kjøper du tjenester fra utlandet for mer enn 2 000 kr i et kvartal, skal du likevel levere melding og betale MVA av dem.")}</p>
+				</div></header>
+				${periods.length ? `
+					<div class="enk-vat-period">
+						<label for="enk-vat-period">${ordinary ? __("Termin") : __("Kvartal")}</label>
+						<select id="enk-vat-period" class="form-control">${periods.map((period) => `<option value="${period.end}" ${period.end === selected.end ? "selected" : ""}>${escape(period.label)}</option>`).join("")}</select>
+						<button class="btn btn-primary btn-sm" type="button" data-action="build-vat">${__("Beregn")}</button>
+					</div>
+					<div class="enk-vat-result" aria-live="polite"></div>
+				` : `<p class="enk-guidance">${__("Ingen termin i 2026 er startet ennå.")}</p>`}
+			</section>
+		`);
+		this.body.find('[data-action="back"]').on("click", () => frappe.set_route("enk-norge"));
+		this.body.find("#enk-vat-period").on("change", (event) => frappe.set_route("enk-norge", "mva", event.target.value));
+		this.body.find('[data-action="build-vat"]').on("click", () => this.build_vat(company, selected));
+		if (selected) this.show_existing_vat(company, selected);
+	}
+
+	async show_existing_vat(company, period) {
+		const existing = await frappe.call({
+			method: "frappe.client.get_list",
+			args: { doctype: "ENK VAT Return", filters: { company, period_end: period.end, report_type: period.report_type }, fields: ["name"], order_by: "revision desc", limit_page_length: 1 },
+		});
+		const name = existing.message?.[0]?.name;
+		if (name) this.render_vat_result(company, period, name);
+	}
+
+	build_vat(company, period) {
+		frappe.call({
+			method: "enk_norge.vat.build_vat_return",
+			args: { company, period_end: period.end, report_type: period.report_type },
+			freeze: true,
+			freeze_message: __("Beregner"),
+			callback: (response) => this.render_vat_result(company, period, response.message.name),
+		});
+	}
+
+	async render_vat_result(company, period, name) {
+		const escape = frappe.utils.escape_html;
+		const doc = (await frappe.db.get_doc("ENK VAT Return", name));
+		const checks = JSON.parse(doc.reconciliation_json || "[]");
+		const ordinary = period.report_type === "Ordinary";
+		const rows = ordinary
+			? [
+				[__("Omsetning med 25 % MVA"), doc.sales_25_basis],
+				[__("Omsetning med 15 % MVA"), doc.sales_15_basis],
+				[__("Omsetning med 12 % MVA"), doc.sales_12_basis],
+				[__("Utgående MVA"), doc.output_vat],
+				[__("Tjenester solgt til utlandet"), doc.export_turnover],
+				[__("Omsetning unntatt MVA"), doc.exempt_turnover],
+				[__("Kjøp fra utlandet, grunnlag"), doc.reverse_charge_basis],
+				[__("MVA av kjøp fra utlandet"), doc.reverse_charge_output_vat],
+				[__("Fradrag for inngående MVA"), Number(doc.purchase_input_vat) + Number(doc.reverse_charge_input_vat)],
+			]
+			: [
+				[__("Kjøp av tjenester fra utlandet, grunnlag"), doc.reverse_charge_basis],
+				[__("MVA å betale (25 %)"), doc.reverse_charge_output_vat],
+			];
+		const missing_reverse = checks.some((check) => check.includes("Omvendt MVA"));
+		const filed = doc.status === "Manually filed";
+		const nothing = !ordinary && !Number(doc.reverse_charge_basis);
+		const status = filed
+			? `<span class="indicator-pill green">${__("Levert")}</span>`
+			: checks.length ? `<span class="indicator-pill orange">${__("Må rettes")}</span>` : `<span class="indicator-pill blue">${__("Klar til levering")}</span>`;
+		this.body.find(".enk-vat-result").html(`
+			<div class="enk-vat-status">${status}<span class="text-muted small">${__("Beregnet {0}", [frappe.datetime.str_to_user(doc.prepared_at)])}</span></div>
+			${nothing ? `<p class="enk-guidance">${__("Kjøpene fra utlandet i kvartalet er ikke over 2 000 kr. Du trenger ikke levere melding for dette kvartalet.")}</p>` : ""}
+			<dl class="enk-totals enk-vat-totals">${rows.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(format_nok(value))}</dd></div>`).join("")}
+				<div><dt>${ordinary ? __("Å betale (negativt er til gode)") : __("Å betale")}</dt><dd>${escape(format_nok(doc.net_vat_payable))}</dd></div></dl>
+			${checks.length ? `<div class="enk-vat-threshold-notice"><h4>${__("Dette må rettes før levering")}</h4><ul>${checks.map((check) => `<li>${escape(check)}</li>`).join("")}</ul>
+				${missing_reverse ? `<p>${__("Lag posteringen for MVA av kjøp fra utlandet, bokfør den og beregn på nytt.")}</p><button class="btn btn-primary btn-sm" type="button" data-action="reverse-draft">${__("Lag postering")}</button>` : ""}</div>` : ""}
+			${!checks.length && !filed && !nothing ? `<section class="enk-attachments">
+				<h3>${__("Lever meldingen")}</h3>
+				<p class="enk-guidance">${__("Logg inn hos Skatteetaten og fyll inn beløpene over i MVA-meldingen. Appen sender ikke meldingen selv. Last deretter opp kvitteringen du får, så markeres meldingen som levert her.")}</p>
+				<a class="btn btn-default btn-sm" href="https://www.skatteetaten.no/bedrift-og-organisasjon/avgifter/mva/" target="_blank" rel="noopener">${__("Til Skatteetaten")}</a>
+				<label class="btn btn-primary btn-sm enk-upload">${__("Last opp kvittering og marker levert")}<input type="file" accept="image/*,application/pdf" class="enk-vat-receipt"></label>
+				<p class="enk-upload-status text-muted small" role="status"></p>
+			</section>` : ""}
+			${filed ? `<p class="enk-guidance">${__("Levert {0}. Kvitteringen ligger ved rapporten.", [frappe.datetime.str_to_user(doc.manually_filed_at)])}</p>` : ""}
+		`);
+		this.body.find('[data-action="reverse-draft"]').on("click", () => this.open_created_draft(null, "enk_norge.vat.create_reverse_charge_draft", { company, period_end: period.end, report_type: period.report_type }));
+		this.body.find(".enk-vat-receipt").on("change", async (event) => {
+			const file = event.target.files?.[0];
+			if (!file) return;
+			const status = this.body.find(".enk-upload-status");
+			status.text(__("Laster opp {0}", [file.name]));
+			const form = new FormData();
+			form.append("file", file, file.name);
+			form.append("is_private", "1");
+			form.append("doctype", "ENK VAT Return");
+			form.append("docname", doc.name);
+			try {
+				const response = await fetch("/api/method/upload_file", { method: "POST", headers: { "X-Frappe-CSRF-Token": frappe.csrf_token, Accept: "application/json" }, body: form });
+				if (!response.ok) throw new Error(response.statusText);
+				const uploaded = (await response.json()).message;
+				frappe.call({
+					method: "enk_norge.vat.mark_vat_return_manually_filed",
+					args: { company, period_end: period.end, report_type: period.report_type, private_receipt_file: uploaded.name },
+					freeze: true,
+					callback: () => {
+						frappe.show_alert({ message: __("Meldingen er markert som levert."), indicator: "green" });
+						this.render_vat_result(company, period, doc.name);
+					},
+				});
+			} catch (error) {
+				status.text(__("Opplastingen feilet. Prøv igjen."));
+			}
+		});
+	}
+
+	render_document(doctype, name) {
+		this.page.clear_actions();
+		this.page.set_title(__("Bilag"));
+		this.body.html(`<section class="enk-bilag" aria-live="polite"><div class="enk-loading">
+			<div class="skeleton enk-loading-title"></div><div class="skeleton enk-loading-line"></div></div></section>`);
+		frappe.call({
+			method: "enk_norge.documents.get_document",
+			args: { doctype, name },
+			callback: (response) => this.render_document_content(response.message),
+			error: () => {
+				this.body.html(`<section class="enk-state">
+					<h2>${__("Fant ikke bilaget")}</h2>
+					<p>${__("Det kan være slettet, eller du mangler tilgang.")}</p>
+					<button class="btn btn-default btn-sm" type="button" data-action="back">${__("Tilbake til oversikten")}</button>
+				</section>`);
+				this.body.find('[data-action="back"]').on("click", () => frappe.set_route("enk-norge"));
+			},
+		});
+	}
+
+	render_document_content(doc) {
+		const escape = frappe.utils.escape_html;
+		const money = (value) => escape(format_money(value, doc.currency));
+		const is_invoice = ["Sales Invoice", "Purchase Invoice"].includes(doc.doctype);
+		const needs_receipt = doc.doctype === "Purchase Invoice" && doc.docstatus === 0 && !doc.attachments.some((file) => file.is_private);
+		this.page.set_title(`${enk_doctype_label(doc.doctype, doc)} ${doc.name}`);
+		const facts = [
+			doc.party && [doc.doctype === "Purchase Invoice" ? __("Leverandør") : doc.doctype === "Sales Invoice" ? __("Kunde") : __("Motpart"), doc.party],
+			doc.bill_no && [__("Leverandørens bilagsnr."), doc.bill_no],
+			doc.posting_date && [__("Dato"), frappe.datetime.str_to_user(doc.posting_date)],
+			doc.due_date && doc.doctype === "Sales Invoice" && [__("Forfall"), frappe.datetime.str_to_user(doc.due_date)],
+			doc.return_against && [__("Korrigerer"), doc.return_against],
+			doc.reference_no && [__("Bankreferanse"), doc.reference_no],
+			doc.description && [__("Forklaring"), doc.description],
+		].filter(Boolean);
+		const lines = doc.doctype === "Journal Entry"
+			? `<table class="enk-lines"><thead><tr><th>${__("Konto")}</th><th class="text-right">${__("Debet")}</th><th class="text-right">${__("Kredit")}</th></tr></thead>
+				<tbody>${doc.lines.map((line) => `<tr><td>${escape(line.description)}</td><td class="text-right" data-label="${__("Debet")}">${Number(line.debit) ? money(line.debit) : ""}</td><td class="text-right" data-label="${__("Kredit")}">${Number(line.credit) ? money(line.credit) : ""}</td></tr>`).join("")}</tbody></table>`
+			: doc.lines.length
+				? `<table class="enk-lines"><thead><tr><th>${__("Beskrivelse")}</th>${is_invoice ? `<th class="text-right">${__("Antall")}</th><th class="text-right">${__("Pris")}</th>` : ""}<th class="text-right">${__("Beløp")}</th></tr></thead>
+					<tbody>${doc.lines.map((line) => `<tr><td>${escape(line.description || "")}</td>${is_invoice ? `<td class="text-right" data-label="${__("Antall")}">${escape(format_number(line.qty))}</td><td class="text-right" data-label="${__("Pris")}">${money(line.rate)}</td>` : ""}<td class="text-right" data-label="${__("Beløp")}">${money(line.amount)}</td></tr>`).join("")}</tbody></table>`
+				: "";
+		const totals = is_invoice
+			? [[__("Ekskl. MVA"), doc.net_total], [__("MVA"), doc.tax_total], [__("Totalt"), doc.grand_total], ...(doc.docstatus === 1 && !doc.is_return ? [[__("Gjenstår å betale"), doc.outstanding_amount]] : [])]
+			: [[__("Beløp"), doc.grand_total]];
+		this.body.html(`
+			<section class="enk-bilag" aria-labelledby="enk-bilag-title">
+				<button class="btn btn-link enk-back" type="button" data-action="back">${frappe.utils.icon("arrow-left", "sm")} ${__("Oversikt")}</button>
+				<header class="enk-bilag-header">
+					<div>
+						<h2 id="enk-bilag-title">${escape(doc.party || doc.description || enk_doctype_label(doc.doctype, doc))}</h2>
+						<p>${enk_doctype_label(doc.doctype, doc)} · ${escape(doc.name)}</p>
+					</div>
+					${enk_status_pill(doc.status)}
+				</header>
+				${this.document_guidance(doc, needs_receipt)}
+				<div class="enk-bilag-actions">${this.document_actions(doc, needs_receipt)}</div>
+				<dl class="enk-facts">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(String(value))}</dd></div>`).join("")}</dl>
+				${lines}
+				<dl class="enk-totals">${totals.map(([label, value]) => `<div><dt>${label}</dt><dd>${money(value)}</dd></div>`).join("")}</dl>
+				<section class="enk-attachments" aria-labelledby="enk-attachments-title">
+					<h3 id="enk-attachments-title">${__("Vedlegg")}</h3>
+					${doc.attachments.length
+						? `<ul>${doc.attachments.map((file) => `<li><a href="${encodeURI(file.file_url)}" target="_blank" rel="noopener">${escape(file.file_name || file.file_url)}</a>${file.is_private ? "" : ` <span class="text-muted small">${__("(offentlig fil)")}</span>`}</li>`).join("")}</ul>`
+						: `<p class="text-muted">${doc.doctype === "Purchase Invoice" ? __("Legg ved kvitteringen eller fakturaen fra leverandøren.") : __("Ingen vedlegg.")}</p>`}
+					${needs_receipt ? "" : `<label class="btn btn-default btn-sm enk-upload">
+						${doc.doctype === "Purchase Invoice" ? __("Legg ved flere filer") : __("Legg ved fil")}
+						<input type="file" accept="image/*,application/pdf" class="enk-upload-input">
+					</label>`}
+					<p class="enk-upload-status text-muted small" role="status"></p>
+				</section>
+				<footer class="enk-bilag-footer">
+					${doc.can_delete ? `<button class="btn btn-default btn-sm text-danger" type="button" data-action="delete">${__("Slett kladden")}</button>` : ""}
+					<a class="enk-erpnext-link" href="/desk/${frappe.router.slug(doc.doctype)}/${encodeURIComponent(doc.name)}">${__("Åpne i ERPNext")}</a>
+				</footer>
+			</section>
+		`);
+		this.bind_document(doc);
+	}
+
+	document_guidance(doc, needs_receipt) {
+		let text = "";
+		if (doc.docstatus === 0) {
+			text = needs_receipt
+				? __("Legg ved bilde eller PDF av kvitteringen. Deretter kan du bokføre.")
+				: __("Dette er en kladd. Kontroller opplysningene og bokfør når alt stemmer.");
+			if (doc.doctype === "Sales Invoice") {
+				text += " " + __("Kladden er ikke sendt til kunden. Last ned PDF-en og send den selv etter bokføring.");
+			}
+		} else if (doc.status === "unpaid") {
+			text = doc.doctype === "Sales Invoice"
+				? __("Fakturaen er bokført. Registrer betalingen når pengene kommer inn.")
+				: __("Kjøpet er bokført. Registrer hvordan det ble betalt.");
+		}
+		return text ? `<p class="enk-guidance">${text}</p>` : "";
+	}
+
+	document_actions(doc, needs_receipt) {
+		const buttons = [];
+		const add = (action, label, primary = false, disabled = false) => buttons.push(
+			`<button class="btn ${primary ? "btn-primary" : "btn-default"} btn-sm" type="button" data-action="${action}" ${disabled ? "disabled" : ""}>${label}</button>`
+		);
+		if (needs_receipt) {
+			buttons.push(`<label class="btn btn-primary btn-sm enk-upload">${__("Legg ved kvittering")}
+				<input type="file" accept="image/*,application/pdf" class="enk-upload-input" aria-label="${__("Velg bilde eller PDF av kvitteringen")}"></label>`);
+		} else if (doc.docstatus === 0 && doc.can_submit) {
+			add("submit", __("Bokfør"), true);
+		}
+		if (doc.doctype === "Sales Invoice") {
+			add("pdf", doc.docstatus === 0 ? __("Forhåndsvis PDF") : __("Last ned PDF"));
+		}
+		if (doc.docstatus === 1 && doc.status === "unpaid") {
+			add("bank-payment", doc.doctype === "Sales Invoice" ? __("Registrer innbetaling") : __("Betalt fra bankkontoen"), true);
+			if (doc.doctype === "Purchase Invoice" && (doc.currency || "NOK") === "NOK") {
+				add("private-payment", __("Betalt med egne penger"));
+			}
+		}
+		if (doc.docstatus === 1 && ["Sales Invoice", "Purchase Invoice"].includes(doc.doctype) && !doc.is_return) {
+			if (doc.deferred) add("recognize", __("Inntektsfør opptjent del"));
+			add("credit-note", __("Lag kreditnota"));
+		}
+		return buttons.join("");
+	}
+
+	bind_document(doc) {
+		const actions = window.enk_norge_actions;
+		const reload = () => this.render_document(doc.doctype, doc.name);
+		const open_created = (created) => {
+			if (created?.doctype && created?.name) {
+				frappe.show_alert({ message: __("Kladden er laget. Kontroller og bokfør den."), indicator: "blue" });
+				this.open_document(created.doctype, created.name);
+			} else {
+				reload();
+			}
+		};
+		const on = (action, handler) => this.body.find(`[data-action="${action}"]`).on("click", handler);
+		on("back", () => frappe.set_route("enk-norge"));
+		on("submit", () => frappe.confirm(
+			__("Når bilaget er bokført, kan det ikke endres eller slettes. Feil rettes med kreditnota. Vil du bokføre nå?"),
+			() => frappe.call({
+				method: "enk_norge.documents.submit_document",
+				args: { doctype: doc.doctype, name: doc.name },
+				freeze: true,
+				freeze_message: __("Bokfører"),
+				callback: () => {
+					frappe.show_alert({ message: __("Bokført."), indicator: "green" });
+					reload();
+				},
+			}),
+		));
+		on("delete", () => frappe.confirm(__("Vil du slette kladden? Den er ikke bokført, så ingenting i regnskapet endres."), () => frappe.call({
+			method: "enk_norge.documents.delete_draft",
+			args: { doctype: doc.doctype, name: doc.name },
+			freeze: true,
+			callback: () => {
+				frappe.show_alert({ message: __("Kladden er slettet."), indicator: "green" });
+				frappe.set_route("enk-norge");
+			},
+		})));
+		on("pdf", () => {
+			const params = new URLSearchParams({ doctype: doc.doctype, name: doc.name, format: "ENK Faktura", no_letterhead: "1" });
+			window.open(`/api/method/frappe.utils.print_format.download_pdf?${params}`, "_blank", "noopener");
+		});
+		on("bank-payment", () => actions.bank_payment(doc, open_created));
+		on("private-payment", () => actions.pay_privately(doc, open_created));
+		on("credit-note", () => actions.credit_note(doc, open_created));
+		on("recognize", () => actions.recognize_revenue(doc, open_created));
+		this.body.find(".enk-upload-input").on("change", (event) => this.upload_attachment(doc, event.target, reload));
+	}
+
+	async upload_attachment(doc, input, done) {
+		const file = input.files?.[0];
+		if (!file) return;
+		const status = this.body.find(".enk-upload-status");
+		if (file.size > 10 * 1024 * 1024) {
+			status.text(__("Filen er større enn 10 MB. Ta et nytt bilde eller lagre som mindre PDF."));
+			return;
+		}
+		status.text(__("Laster opp {0}", [file.name]));
+		const form = new FormData();
+		form.append("file", file, file.name);
+		form.append("is_private", "1");
+		form.append("doctype", doc.doctype);
+		form.append("docname", doc.name);
+		form.append("folder", "Home/Attachments");
+		try {
+			const response = await fetch("/api/method/upload_file", {
+				method: "POST",
+				headers: { "X-Frappe-CSRF-Token": frappe.csrf_token, Accept: "application/json" },
+				body: form,
+			});
+			if (!response.ok) throw new Error(response.statusText);
+			frappe.show_alert({ message: __("Vedlegget er lagret."), indicator: "green" });
+			done();
+		} catch (error) {
+			status.text(__("Opplastingen feilet. Prøv igjen, eller velg en annen fil."));
+		}
+	}
+
+	async open_company_profile_dialog(company) {
+		const response = await frappe.call({ method: "enk_norge.setup.company_profile", args: { company } });
+		const profile = response.message;
+		const escape = frappe.utils.escape_html;
+		const locked = profile.vat_registered && profile.has_postings;
+		const facts = [
+			[__("Organisasjonsnummer"), profile.organization_number],
+			[__("Adresse"), `${profile.address_line}, ${profile.postal_code} ${profile.city}`],
+			[__("Telefon"), profile.phone],
+			[__("Bank"), `${profile.bank_name}, ${profile.bank_account}`],
+			[__("Regnskapet starter"), frappe.datetime.str_to_user(profile.start_date)],
+		];
+		const dialog = new frappe.ui.Dialog({
+			title: __("Foretak og MVA"),
+			fields: [
+				{ fieldtype: "HTML", options: `<dl class="enk-facts">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(value || "")}</dd></div>`).join("")}</dl>` },
+				{ fieldtype: "Section Break", label: __("MVA-registrering") },
+				{
+					fieldtype: "HTML",
+					options: `<p class="text-muted small">${locked
+						? __("Foretaket er registrert fra {0}, og det er bokført bilag. Registreringen kan ikke endres her.", [frappe.datetime.str_to_user(profile.vat_registration_date)])
+						: __("Når Skatteetaten har registrert foretaket i Merverdiavgiftsregisteret, oppgir du datoen registreringen gjelder fra. Fakturaer fra og med den datoen får MVA.")}</p>`,
+				},
+				{ fieldname: "vat_registered", label: __("Foretaket er MVA-registrert"), fieldtype: "Check", default: profile.vat_registered ? 1 : 0, read_only: locked ? 1 : 0 },
+				{ fieldname: "vat_registration_date", label: __("Registrert fra"), fieldtype: "Date", default: profile.vat_registration_date, depends_on: "eval:doc.vat_registered", read_only: locked ? 1 : 0 },
+			],
+			primary_action_label: locked ? __("Lukk") : __("Lagre"),
+			primary_action: (values) => {
+				if (locked) {
+					dialog.hide();
+					return;
+				}
+				if (values.vat_registered && !values.vat_registration_date) {
+					frappe.msgprint(__("Oppgi datoen registreringen gjelder fra."));
+					return;
+				}
+				frappe.call({
+					method: "enk_norge.setup.update_vat_registration",
+					args: { company, vat_registered: values.vat_registered ? 1 : 0, vat_registration_date: values.vat_registration_date || null },
+					btn: dialog.get_primary_btn(),
+					callback: () => {
+						dialog.hide();
+						frappe.show_alert({ message: __("MVA-status er lagret."), indicator: "green" });
+						this.render_dashboard();
+					},
+				});
+			},
+		});
+		dialog.show();
+	}
+
 	open_sale_dialog(company) {
 		const dialog = new frappe.ui.Dialog({
-			title: __("Ny salgsfaktura"),
+			title: __("Ny faktura"),
 			fields: [
-				{ fieldname: "customer", label: __("Kunde"), fieldtype: "Link", options: "Customer", reqd: 1 },
-				{ fieldname: "customer_address", label: __("Fakturaadresse"), fieldtype: "Link", options: "Address", reqd: 1 },
-				{ fieldname: "description", label: __("Hva er levert?"), fieldtype: "Small Text", reqd: 1 },
+				...this.customer_fields(() => dialog),
+				{ fieldname: "description", label: __("Hva har du levert?"), fieldtype: "Small Text", reqd: 1, description: __("Står på fakturaen, for eksempel «Konsulentbistand september».") },
+				{ fieldtype: "Section Break" },
+				{ fieldname: "quantity", label: __("Antall"), fieldtype: "Float", default: 1, reqd: 1, description: __("Timer, stykk eller måneder.") },
+				{ fieldtype: "Column Break" },
+				{ fieldname: "unit_price", label: __("Pris per enhet"), fieldtype: "Currency", reqd: 1, description: __("Uten MVA. MVA legges til hvis foretaket er registrert.") },
+				{ fieldtype: "Section Break" },
 				{ fieldname: "delivery_date", label: __("Leveringsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
-				{ fieldname: "unit_price", label: __("Beløp ekskl. MVA"), fieldtype: "Currency", reqd: 1 },
+				{ fieldtype: "Column Break" },
+				{ fieldname: "due_date", label: __("Forfallsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.add_days(frappe.datetime.get_today(), 14) },
+				{ fieldtype: "Section Break", label: __("Utenlandsk kunde, unntak eller abonnement"), collapsible: 1 },
+				...this.sale_tax_fields(),
 				{
 					fieldname: "currency",
 					label: __("Valuta"),
 					fieldtype: "Link",
 					options: "Currency",
 					default: "NOK",
-					reqd: 1,
-					description: __("Valutasalg støttes bare for fjernleverbare tjenester til utenlandsk bedrift."),
+					description: __("Annen valuta enn NOK gjelder bare tjenester til utenlandske bedrifter."),
 				},
-				{
-					fieldname: "conversion_rate",
-					label: __("Kurs til NOK"),
-					fieldtype: "Float",
-					precision: 6,
-					depends_on: "eval:doc.currency!='NOK'",
-					description: __("NOK per enhet i dokumentvalutaen."),
-				},
-				{
-					fieldname: "exchange_rate_source",
-					label: __("Kurskilde"),
-					fieldtype: "Data",
-					depends_on: "eval:doc.currency!='NOK'",
-					description: __("For eksempel bankens kursnotering eller betalingsformidlerens oppgjør."),
-				},
-				{
-					fieldname: "exchange_rate_date",
-					label: __("Kursdato"),
-					fieldtype: "Date",
-					depends_on: "eval:doc.currency!='NOK'",
-				},
-				{ fieldname: "due_date", label: __("Forfallsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
-				{
-					fieldname: "tax_treatment",
-					label: __("Avgiftsbehandling"),
-					fieldtype: "Select",
-					options: ["", "Domestic 25", "Domestic 15", "Domestic 12", "Not registered", "Export services", "Exempt"].join("\n"),
-					description: __("La feltet stå tomt for standardbehandling. Velg eksplisitt for eksport eller unntatt omsetning."),
-				},
-				{
-					fieldname: "tax_reason",
-					label: __("Regel og begrunnelse for unntatt omsetning"),
-					fieldtype: "Small Text",
-					depends_on: "eval:doc.tax_treatment=='Exempt'",
-				},
-				{ fieldname: "defer_revenue", label: __("Periodiser forskuddsbetalt SaaS-abonnement"), fieldtype: "Check", change: () => this.toggle_subscription_fields(dialog) },
+				{ fieldname: "conversion_rate", label: __("Kurs til NOK"), fieldtype: "Float", precision: 6, depends_on: "eval:doc.currency!='NOK'", description: __("NOK per enhet i valutaen.") },
+				{ fieldname: "exchange_rate_source", label: __("Kurskilde"), fieldtype: "Data", depends_on: "eval:doc.currency!='NOK'", description: __("For eksempel Norges Bank eller bankens kurs.") },
+				{ fieldname: "exchange_rate_date", label: __("Kursdato"), fieldtype: "Date", depends_on: "eval:doc.currency!='NOK'" },
+				{ fieldname: "defer_revenue", label: __("Forskuddsbetalt abonnement som skal inntektsføres over perioden"), fieldtype: "Check", change: () => this.toggle_subscription_fields(dialog) },
 				{ fieldname: "service_start_date", label: __("Tjenestestart"), fieldtype: "Date", depends_on: "eval:doc.defer_revenue" },
 				{ fieldname: "service_end_date", label: __("Tjenesteslutt"), fieldtype: "Date", depends_on: "eval:doc.defer_revenue" },
 				{
 					fieldname: "subscription_source_file",
-					label: __("Privat avtaledokument"),
+					label: __("Avtale eller ordrebekreftelse"),
 					fieldtype: "Attach",
 					options: { make_attachments_public: false },
 					depends_on: "eval:doc.defer_revenue",
-					description: __("Periodisering krever en privat avtale. Fakturaen må være før eller på tjenestestart."),
+					description: __("Dokumenterer perioden. Fakturadatoen må være før eller på tjenestestart."),
 				},
 			],
-			primary_action_label: __("Opprett kladd"),
+			primary_action_label: __("Lag kladd"),
 			primary_action: async (values) => {
+				if (!values.customer_address) {
+					frappe.msgprint(__("Kunden mangler fakturaadresse. Opprett kunden med «Ny kunde», eller legg til adressen på kunden."));
+					return;
+				}
 				if (!this.validate_currency_values(values, values.delivery_date, values.tax_treatment === "Export services", __("Valutasalg"))) {
 					return;
 				}
-				if (values.tax_treatment === "Exempt" && !values.tax_reason?.trim()) {
-					frappe.msgprint(__("Oppgi den konkrete regelen og begrunnelsen for unntatt omsetning."));
-					return;
-				}
+				if (!this.validate_tax_reason(values)) return;
 				if (values.defer_revenue) {
 					if (!values.service_start_date || !values.service_end_date || !values.subscription_source_file) {
-						frappe.msgprint(__("Periodisering krever tjenestestart, tjenesteslutt og privat avtaledokument."));
+						frappe.msgprint(__("Abonnement som inntektsføres over perioden krever tjenestestart, tjenesteslutt og avtaledokument."));
 						return;
 					}
 					if (values.delivery_date > values.service_start_date || values.service_end_date < values.service_start_date) {
 						frappe.msgprint(__("Fakturaen må være før eller på tjenestestart, og tjenesteslutt kan ikke være før start."));
 						return;
 					}
-					const file = await frappe.db.get_value("File", { file_url: values.subscription_source_file }, ["name", "is_private"]);
-					if (!file.message?.name || !file.message.is_private) {
-						frappe.msgprint(__("Last opp avtaledokumentet på nytt som privat fil."));
-						return;
-					}
-					values.subscription_source_file = file.message.name;
+					const file = await this.private_file_name(values.subscription_source_file, __("avtaledokumentet"));
+					if (!file) return;
+					values.subscription_source_file = file;
 				}
 				delete values.defer_revenue;
-				this.create_draft(dialog, "enk_norge.api.create_sale", { ...values, company, quantity: 1 });
+				delete values.address_display;
+				this.create_draft(dialog, "enk_norge.api.create_sale", { ...values, company });
 			},
 		});
 		dialog.show();
 		this.toggle_subscription_fields(dialog);
+	}
+
+	customer_fields(get_dialog) {
+		return [
+			{
+				fieldname: "new_customer",
+				label: __("Ny kunde"),
+				fieldtype: "Button",
+				click: () => this.open_customer_dialog((created) => {
+					const dialog = get_dialog();
+					dialog.set_value("customer", created.customer);
+				}),
+			},
+			{
+				fieldname: "customer",
+				label: __("Kunde"),
+				fieldtype: "Link",
+				options: "Customer",
+				only_select: 1,
+				reqd: 1,
+				change: () => this.fill_billing_address(get_dialog()),
+			},
+			{ fieldname: "customer_address", fieldtype: "Data", hidden: 1 },
+			{ fieldname: "address_display", fieldtype: "HTML" },
+		];
+	}
+
+	async fill_billing_address(dialog) {
+		const customer = dialog.get_value("customer");
+		const display = dialog.get_field("address_display");
+		dialog.set_value("customer_address", "");
+		display.$wrapper.html("");
+		if (!customer) return;
+		const response = await frappe.call({ method: "enk_norge.parties.billing_address", args: { customer } });
+		const address = response.message;
+		if (dialog.get_value("customer") !== customer) return;
+		if (!address) {
+			display.$wrapper.html(`<p class="text-danger small">${__("Kunden mangler fakturaadresse.")}</p>`);
+			return;
+		}
+		dialog.set_value("customer_address", address.name);
+		const lines = [address.address_line1, [address.pincode, address.city].filter(Boolean).join(" "), address.country !== "Norway" ? address.country : ""].filter(Boolean);
+		display.$wrapper.html(`<p class="text-muted small enk-address">${lines.map(frappe.utils.escape_html).join(", ")}</p>`);
+	}
+
+	open_customer_dialog(on_created) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Ny kunde"),
+			fields: [
+				{ fieldname: "customer_name", label: __("Navn"), fieldtype: "Data", reqd: 1 },
+				{ fieldname: "customer_type", label: __("Type"), fieldtype: "Select", options: [{ label: __("Bedrift"), value: "Company" }, { label: __("Privatperson"), value: "Individual" }], default: "Company", reqd: 1 },
+				{ fieldname: "organization_number", label: __("Organisasjonsnummer"), fieldtype: "Data", depends_on: "eval:doc.customer_type=='Company'" },
+				{ fieldname: "email", label: __("E-post for faktura"), fieldtype: "Data", options: "Email" },
+				{ fieldtype: "Section Break", label: __("Fakturaadresse") },
+				{ fieldname: "address_line", label: __("Adresse"), fieldtype: "Data", reqd: 1 },
+				{ fieldname: "postal_code", label: __("Postnummer"), fieldtype: "Data" },
+				{ fieldname: "city", label: __("Poststed"), fieldtype: "Data", reqd: 1 },
+				{ fieldname: "country", label: __("Land"), fieldtype: "Link", options: "Country", default: "Norway", reqd: 1 },
+			],
+			primary_action_label: __("Opprett kunde"),
+			primary_action: (values) => frappe.call({
+				method: "enk_norge.parties.create_customer",
+				args: { data: values },
+				btn: dialog.get_primary_btn(),
+				callback: (response) => {
+					dialog.hide();
+					frappe.show_alert({ message: __("{0} er opprettet.", [response.message.customer_name]), indicator: "green" });
+					on_created?.(response.message);
+				},
+			}),
+		});
+		dialog.show();
+	}
+
+	supplier_fields(get_dialog) {
+		return [
+			{
+				fieldname: "new_supplier",
+				label: __("Ny leverandør"),
+				fieldtype: "Button",
+				click: () => this.open_supplier_dialog((created) => get_dialog().set_value("supplier", created.supplier)),
+			},
+			{
+				fieldname: "supplier",
+				label: __("Leverandør"),
+				fieldtype: "Link",
+				options: "Supplier",
+				only_select: 1,
+				reqd: 1,
+				change: () => this.fill_supplier_country(get_dialog()),
+			},
+			{ fieldname: "foreign_service", label: __("Tjeneste fra utlandet"), fieldtype: "Check", hidden: 1 },
+			{ fieldname: "supplier_display", fieldtype: "HTML" },
+		];
+	}
+
+	async fill_supplier_country(dialog) {
+		const supplier = dialog.get_value("supplier");
+		const display = dialog.get_field("supplier_display");
+		display.$wrapper.html("");
+		if (!supplier) return;
+		const response = await frappe.db.get_value("Supplier", supplier, "country");
+		if (dialog.get_value("supplier") !== supplier) return;
+		const country = response.message?.country;
+		const foreign = Boolean(country && country !== "Norway");
+		dialog.set_value("foreign_service", foreign ? 1 : 0);
+		if (foreign) {
+			display.$wrapper.html(`<p class="text-muted small">${__("Leverandøren holder til i {0}. Kjøpet føres som tjeneste fra utlandet, og beløpet oppgis uten norsk MVA.", [frappe.utils.escape_html(__(country))])}</p>`);
+		}
+	}
+
+	open_supplier_dialog(on_created) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Ny leverandør"),
+			fields: [
+				{ fieldname: "supplier_name", label: __("Navn"), fieldtype: "Data", reqd: 1, description: __("For eksempel OpenAI, Apple eller Telenor.") },
+				{ fieldname: "country", label: __("Land"), fieldtype: "Link", options: "Country", default: "Norway", reqd: 1, description: __("Landet leverandøren fakturerer fra. Avgjør om MVA skal beregnes som kjøp fra utlandet.") },
+				{ fieldname: "organization_number", label: __("Organisasjonsnummer"), fieldtype: "Data", depends_on: "eval:doc.country=='Norway'" },
+			],
+			primary_action_label: __("Opprett leverandør"),
+			primary_action: (values) => frappe.call({
+				method: "enk_norge.parties.create_supplier",
+				args: { data: { ...values, supplier_type: "Company" } },
+				btn: dialog.get_primary_btn(),
+				callback: (response) => {
+					dialog.hide();
+					frappe.show_alert({ message: __("{0} er opprettet.", [response.message.supplier_name]), indicator: "green" });
+					on_created?.(response.message);
+				},
+			}),
+		});
+		dialog.show();
 	}
 
 	toggle_subscription_fields(dialog) {
@@ -563,29 +1229,91 @@ class EnkNorgePage {
 		}
 	}
 
-	open_timesheet_invoice_dialog(company) {
+	open_log_hours_dialog(company) {
 		const dialog = new frappe.ui.Dialog({
-			title: __("Fakturer godkjente timer"),
+			title: __("Før timer"),
 			fields: [
-				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Velg en innsendt Timesheet i dette foretaket. Utkastet bruker Timesheet-satsen; endre Timesheet først hvis prisen har endret seg.")}</p>` },
-				{ fieldname: "timesheet", label: __("Timesheet"), fieldtype: "Link", options: "Timesheet", reqd: 1 },
-				{ fieldname: "customer", label: __("Kunde"), fieldtype: "Link", options: "Customer", reqd: 1 },
-				{ fieldname: "customer_address", label: __("Fakturaadresse"), fieldtype: "Link", options: "Address", reqd: 1 },
-				{ fieldname: "item_code", label: __("Vare"), fieldtype: "Link", options: "Item", reqd: 1 },
+				...this.customer_fields(() => dialog).filter((field) => !["customer_address", "address_display"].includes(field.fieldname)),
+				{ fieldname: "date", label: __("Dato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
+				{ fieldtype: "Section Break" },
+				{ fieldname: "hours", label: __("Timer"), fieldtype: "Float", precision: 2, reqd: 1, description: __("For eksempel 1,5 for halvannen time.") },
+				{ fieldtype: "Column Break" },
+				{ fieldname: "rate", label: __("Timepris"), fieldtype: "Currency", options: "NOK", reqd: 1, description: __("Uten MVA.") },
+				{ fieldtype: "Section Break" },
+				{ fieldname: "description", label: __("Hva jobbet du med?"), fieldtype: "Small Text", reqd: 1 },
+			],
+			primary_action_label: __("Lagre timer"),
+			primary_action: (values) => frappe.call({
+				method: "enk_norge.hours.log_hours",
+				args: { data: { ...values, company } },
+				btn: dialog.get_primary_btn(),
+				callback: (response) => {
+					const summary = response.message;
+					frappe.show_alert({
+						message: __("Lagret. {0} timer venter på fakturering hos {1}.", [format_number(summary.hours), frappe.utils.escape_html(summary.customer_name)]),
+						indicator: "green",
+					});
+					dialog.set_value("hours", "");
+					dialog.set_value("description", "");
+				},
+			}),
+			secondary_action_label: __("Lukk"),
+			secondary_action: () => dialog.hide(),
+		});
+		dialog.show();
+	}
+
+	async open_invoice_hours_dialog(company) {
+		const response = await frappe.call({ method: "enk_norge.hours.open_hours", args: { company } });
+		const groups = response.message || [];
+		if (!groups.length) {
+			frappe.msgprint({
+				title: __("Ingen timer å fakturere"),
+				message: __("Før timer først. Timene samles per kunde til du fakturerer dem."),
+			});
+			return;
+		}
+		const escape = frappe.utils.escape_html;
+		const options = groups.map((group) => ({ label: `${group.customer_name}: ${format_number(group.hours)} t, ${format_nok(group.amount)}`, value: group.timesheet }));
+		const render_logs = (dialog) => {
+			const group = groups.find((item) => item.timesheet === dialog.get_value("timesheet"));
+			if (!group) return;
+			dialog.get_field("logs").$wrapper.html(`<table class="enk-lines"><thead><tr><th>${__("Dato")}</th><th>${__("Arbeid")}</th><th class="text-right">${__("Timer")}</th><th class="text-right">${__("Beløp")}</th><th></th></tr></thead><tbody>
+				${group.logs.map((log) => `<tr><td>${frappe.datetime.str_to_user(log.date)}</td><td>${escape(log.description || "")}</td><td class="text-right">${format_number(log.hours)}</td><td class="text-right">${escape(format_nok(log.amount))}</td>
+					<td class="text-right">${group.docstatus === 0 ? `<button type="button" class="btn btn-xs btn-default" data-remove-row="${escape(log.row)}" aria-label="${__("Fjern")}">${__("Fjern")}</button>` : ""}</td></tr>`).join("")}
+			</tbody></table>`);
+			dialog.get_field("logs").$wrapper.find("[data-remove-row]").on("click", (event) => {
+				frappe.call({
+					method: "enk_norge.hours.remove_hours",
+					args: { timesheet: group.timesheet, row: $(event.currentTarget).attr("data-remove-row") },
+					callback: () => {
+						dialog.hide();
+						this.open_invoice_hours_dialog(company);
+					},
+				});
+			});
+		};
+		const dialog = new frappe.ui.Dialog({
+			title: __("Fakturer timer"),
+			fields: [
+				{ fieldname: "timesheet", label: __("Kunde"), fieldtype: "Select", options, default: options[0].value, reqd: 1, change: () => render_logs(dialog) },
+				{ fieldname: "logs", fieldtype: "HTML" },
+				{ fieldname: "delivery_description", label: __("Tekst på fakturaen"), fieldtype: "Small Text", reqd: 1, default: __("Konsulenttimer") },
+				{ fieldtype: "Section Break" },
 				{ fieldname: "posting_date", label: __("Fakturadato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-				{ fieldname: "delivery_date", label: __("Leveringsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-				{ fieldname: "delivery_description", label: __("Hva er levert?"), fieldtype: "Small Text", reqd: 1 },
-				{ fieldname: "due_date", label: __("Forfallsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-				{ fieldname: "unit_price", label: __("Timesheet-sats (valgfri kontroll)"), fieldtype: "Currency", options: "NOK", description: __("Må være lik Timesheet-satsen. La feltet stå tomt for å bruke satsen derfra.") },
+				{ fieldtype: "Column Break" },
+				{ fieldname: "due_date", label: __("Forfallsdato"), fieldtype: "Date", default: frappe.datetime.add_days(frappe.datetime.get_today(), 14), reqd: 1 },
+				{ fieldtype: "Section Break", label: __("Utenlandsk kunde eller unntak"), collapsible: 1 },
 				...this.sale_tax_fields(),
 			],
-			primary_action_label: __("Opprett kladd"),
+			primary_action_label: __("Lag fakturakladd"),
 			primary_action: (values) => {
 				if (!this.validate_tax_reason(values)) return;
-				this.create_draft(dialog, "enk_norge.billing.create_timesheet_invoice_draft", { company, ...values });
+				this.open_created_draft(dialog, "enk_norge.hours.invoice_hours", { data: { ...values, company } });
 			},
 		});
 		dialog.show();
+		render_logs(dialog);
 	}
 
 	open_subscription_invoice_dialog(company) {
@@ -593,9 +1321,8 @@ class EnkNorgePage {
 			title: __("Fakturer abonnement"),
 			fields: [
 				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Bruk abonnementets aktive periode, eller neste direkte sammenhengende periode når den forrige er bokført. Slå av «Submit Generated Invoices». Flyten lager bare kladd, hopper aldri over en periode og avviser overlappende faktura.")}</p>` },
-				{ fieldname: "subscription", label: __("Abonnement"), fieldtype: "Link", options: "Subscription", reqd: 1 },
-				{ fieldname: "customer", label: __("Kunde"), fieldtype: "Link", options: "Customer", reqd: 1 },
-				{ fieldname: "customer_address", label: __("Fakturaadresse"), fieldtype: "Link", options: "Address", reqd: 1 },
+				{ fieldname: "subscription", label: __("Abonnement"), fieldtype: "Link", options: "Subscription", only_select: 1, reqd: 1 },
+				...this.customer_fields(() => dialog),
 				{ fieldname: "posting_date", label: __("Fakturadato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
 				{ fieldname: "delivery_date", label: __("Leveringsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
 				{ fieldname: "delivery_description", label: __("Hva er levert?"), fieldtype: "Small Text", reqd: 1 },
@@ -615,6 +1342,7 @@ class EnkNorgePage {
 			primary_action_label: __("Opprett kladd"),
 			primary_action: async (values) => {
 				if (!this.validate_tax_reason(values)) return;
+				delete values.address_display;
 				if (values.service_end_date < values.service_start_date || values.posting_date > values.service_start_date) {
 					frappe.msgprint(__("Tjenesteperioden må være sammenhengende, og fakturaen må være før eller på tjenestestart."));
 					return;
@@ -634,9 +1362,18 @@ class EnkNorgePage {
 				fieldname: "tax_treatment",
 				label: __("Avgiftsbehandling"),
 				fieldtype: "Select",
-				options: ["", "Domestic 25", "Domestic 15", "Domestic 12", "Not registered", "Export services", "Exempt"].join("\n"),
+				options: [
+					{ label: __("Vanlig (velges ut fra MVA-status)"), value: "" },
+					{ label: __("25 % MVA"), value: "Domestic 25" },
+					{ label: __("15 % MVA (næringsmidler)"), value: "Domestic 15" },
+					{ label: __("12 % MVA (persontransport, kultur m.m.)"), value: "Domestic 12" },
+					{ label: __("Ikke MVA-registrert"), value: "Not registered" },
+					{ label: __("Tjeneste til utenlandsk bedrift"), value: "Export services" },
+					{ label: __("Unntatt fra MVA"), value: "Exempt" },
+				],
+				description: __("La stå på «Vanlig» med mindre kunden er i utlandet eller leveransen er unntatt."),
 			},
-			{ fieldname: "tax_reason", label: __("Regel og begrunnelse for unntatt omsetning"), fieldtype: "Small Text", depends_on: "eval:doc.tax_treatment=='Exempt'" },
+			{ fieldname: "tax_reason", label: __("Regel og begrunnelse for unntaket"), fieldtype: "Small Text", depends_on: "eval:doc.tax_treatment=='Exempt'" },
 		];
 	}
 
@@ -658,130 +1395,103 @@ class EnkNorgePage {
 	}
 
 	open_purchase_dialog(company) {
+		const registered = Boolean(this.dashboard_data?.vat_registered);
 		const dialog = new frappe.ui.Dialog({
-			title: __("Nytt kjøp"),
+			title: __("Nytt kjøp eller utgift"),
 			fields: [
-				{ fieldname: "supplier", label: __("Leverandør"), fieldtype: "Link", options: "Supplier", reqd: 1 },
-				{ fieldname: "bill_no", label: __("Leverandørens bilagsnummer"), fieldtype: "Data", reqd: 1 },
-				{ fieldname: "bill_date", label: __("Bilagsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
-				{ fieldname: "description", label: __("Formål"), fieldtype: "Small Text", reqd: 1 },
-				{ fieldname: "gross_amount", label: __("Beløp inkl. MVA"), fieldtype: "Currency", reqd: 1 },
-				{
-					fieldname: "currency",
-					label: __("Valuta"),
-					fieldtype: "Link",
-					options: "Currency",
-					default: "NOK",
-					reqd: 1,
-					description: __("Valutakjøp støttes bare for utenlandske tjenester med omvendt MVA."),
-				},
-				{
-					fieldname: "conversion_rate",
-					label: __("Kurs til NOK"),
-					fieldtype: "Float",
-					precision: 6,
-					depends_on: "eval:doc.currency!='NOK'",
-					description: __("NOK per enhet i dokumentvalutaen."),
-				},
-				{
-					fieldname: "exchange_rate_source",
-					label: __("Kurskilde"),
-					fieldtype: "Data",
-					depends_on: "eval:doc.currency!='NOK'",
-				},
-				{
-					fieldname: "exchange_rate_date",
-					label: __("Kursdato"),
-					fieldtype: "Date",
-					depends_on: "eval:doc.currency!='NOK'",
-				},
-				{ fieldname: "vat_rate", label: __("MVA-sats"), fieldtype: "Select", options: "0\n12\n15\n25", default: "0", reqd: 1 },
-				{ fieldname: "foreign_service", label: __("Kjøp av utenlandsk tjeneste"), fieldtype: "Check" },
-				{
-					fieldname: "tax_reason",
-					label: __("Regel og begrunnelse uten inngående MVA"),
-					fieldtype: "Small Text",
-					depends_on: "eval:doc.vat_rate=='0' && !doc.foreign_service",
-					description: __("Oppgi dette når foretaket er MVA-registrert og kjøpet ikke gir inngående MVA."),
-				},
+				...this.supplier_fields(() => dialog),
+				{ fieldname: "description", label: __("Hva er kjøpt, og hva skal det brukes til?"), fieldtype: "Small Text", reqd: 1, description: __("For eksempel «ChatGPT-abonnement til kundearbeid».") },
 				{
 					fieldname: "category",
-					label: __("Kostnadskategori"),
+					label: __("Type kjøp"),
 					fieldtype: "Select",
 					options: [
+						{ label: __("Programvare og abonnementer"), value: "software" },
+						{ label: __("Utstyr, for eksempel PC, Mac eller telefon"), value: "equipment" },
 						{ label: __("Annen driftskostnad"), value: "expense" },
-						{ label: __("Programvare og nettjenester"), value: "software" },
-						{ label: __("Utstyr kostnadsført ved kjøp"), value: "equipment" },
 						{ label: __("Bank- og betalingsgebyr"), value: "fees" },
-						{ label: __("Utstyr med varig verdi"), value: "asset" },
 					],
-					default: "expense",
+					default: "software",
 					reqd: 1,
 				},
 				{
 					fieldname: "expected_life_months",
-					label: __("Forventet brukstid i måneder"),
+					label: __("Hvor mange måneder regner du med å bruke det?"),
 					fieldtype: "Int",
-					depends_on: "eval:doc.category=='equipment'||doc.category=='asset'",
+					default: 36,
+					depends_on: "eval:doc.category=='equipment'",
+					description: __("Utstyr til 30 000 kr eller mer som varer minst tre år, aktiveres og avskrives automatisk."),
+				},
+				{ fieldtype: "Section Break" },
+				{ fieldname: "gross_amount", label: __("Totalbeløp på kvitteringen"), fieldtype: "Currency", reqd: 1, description: __("Det du faktisk betalte, med eventuell MVA.") },
+				{ fieldtype: "Column Break" },
+				{ fieldname: "bill_date", label: __("Dato på kvitteringen"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
+				{ fieldtype: "Section Break" },
+				{ fieldname: "bill_no", label: __("Kvitterings- eller fakturanummer"), fieldtype: "Data", reqd: 1, description: __("Står på kvitteringen. Brukes til å stoppe dobbeltregistrering.") },
+				{
+					fieldname: "vat_rate",
+					label: __("MVA-sats på kvitteringen"),
+					fieldtype: "Select",
+					options: [{ label: "25 %", value: "25" }, { label: "15 %", value: "15" }, { label: "12 %", value: "12" }, { label: __("Ingen MVA"), value: "0" }],
+					default: registered ? "25" : "0",
+					hidden: registered ? 0 : 1,
+					depends_on: "eval:!doc.foreign_service",
 				},
 				{
-					fieldname: "business_fraction_percent",
-					label: __("Næringsandel av kjøpet (%)"),
-					fieldtype: "Float",
-					default: 100,
-					description: __("Hvor stor del av hele kjøpet som brukes i næringen."),
-					reqd: 1,
+					fieldname: "tax_reason",
+					label: __("Hvorfor er det ingen MVA?"),
+					fieldtype: "Small Text",
+					hidden: registered ? 0 : 1,
+					depends_on: registered ? "eval:doc.vat_rate=='0' && !doc.foreign_service" : "eval:false",
+					description: __("For eksempel unntatt ytelse eller leverandør som ikke er MVA-registrert."),
 				},
+				{ fieldtype: "Section Break", label: __("Betalt i utenlandsk valuta"), depends_on: "eval:doc.foreign_service" },
+				{ fieldname: "currency", label: __("Valuta"), fieldtype: "Link", options: "Currency", default: "NOK" },
+				{ fieldname: "conversion_rate", label: __("Kurs til NOK"), fieldtype: "Float", precision: 6, depends_on: "eval:doc.currency!='NOK'", description: __("NOK per enhet. Bruk kursen fra kontoutskriften eller Norges Bank.") },
+				{ fieldname: "exchange_rate_source", label: __("Kurskilde"), fieldtype: "Data", depends_on: "eval:doc.currency!='NOK'" },
+				{ fieldname: "exchange_rate_date", label: __("Kursdato"), fieldtype: "Date", depends_on: "eval:doc.currency!='NOK'" },
+				{ fieldtype: "Section Break", label: __("Brukes også privat"), collapsible: 1 },
+				{ fieldname: "business_fraction_percent", label: __("Hvor mye brukes i næringen (%)"), fieldtype: "Float", default: 100, description: __("Resten føres som privat uttak.") },
 				{
 					fieldname: "deductible_fraction_percent",
 					label: __("Fradragsberettiget MVA (%)"),
 					fieldtype: "Float",
 					default: 100,
+					hidden: registered ? 0 : 1,
 					description: __("Kan ikke være høyere enn næringsandelen."),
-					reqd: 1,
 				},
-				{
-					fieldname: "tax_deductible_fraction_percent",
-					label: __("Skattemessig fradragsandel av næringskostnaden (%)"),
-					fieldtype: "Float",
-					default: 100,
-					description: __("Gjelder den bokførte næringskostnaden etter privat andel. Dette er ikke MVA-andelen."),
-					reqd: 1,
-				},
-				{
-					fieldname: "tax_adjustment_reason",
-					label: __("Begrunnelse for redusert skattemessig fradrag"),
-					fieldtype: "Small Text",
-					depends_on: "eval:doc.tax_deductible_fraction_percent<100",
-				},
+				{ fieldname: "tax_deductible_fraction_percent", label: __("Skattemessig fradrag av næringsdelen (%)"), fieldtype: "Float", default: 100, description: __("Normalt 100. Lavere bare når deler av kostnaden ikke gir fradrag, for eksempel representasjon.") },
+				{ fieldname: "tax_adjustment_reason", label: __("Begrunnelse for redusert fradrag"), fieldtype: "Small Text", depends_on: "eval:doc.tax_deductible_fraction_percent<100" },
 			],
-			primary_action_label: __("Opprett kladd"),
+			primary_action_label: __("Lag kladd"),
 			primary_action: (values) => {
+				delete values.supplier_display;
+				if (!registered) {
+					values.vat_rate = "0";
+					values.deductible_fraction_percent = values.business_fraction_percent;
+				}
+				if (values.foreign_service) values.vat_rate = "0";
 				if (!this.validate_currency_values(values, values.bill_date, Boolean(values.foreign_service), __("Valutakjøp"))) {
 					return;
 				}
-				const business_fraction = Number(values.business_fraction_percent) / 100;
-				const deductible_fraction = Number(values.deductible_fraction_percent) / 100;
-				const tax_deductible_fraction = Number(values.tax_deductible_fraction_percent) / 100;
-				if (!Number.isFinite(business_fraction) || !Number.isFinite(deductible_fraction) || business_fraction < 0 || business_fraction > 1 || deductible_fraction < 0 || deductible_fraction > business_fraction) {
-					frappe.msgprint(__("Oppgi andeler fra 0 til 100 prosent. MVA-andelen kan ikke være høyere enn næringsandelen."));
+				const percent = (value) => (value === undefined || value === null || value === "" ? 100 : Number(value)) / 100;
+				const business_fraction = percent(values.business_fraction_percent);
+				const deductible_fraction = percent(values.deductible_fraction_percent);
+				const tax_deductible_fraction = percent(values.tax_deductible_fraction_percent);
+				if (!Number.isFinite(business_fraction) || !Number.isFinite(deductible_fraction) || business_fraction <= 0 || business_fraction > 1 || deductible_fraction < 0 || deductible_fraction > business_fraction) {
+					frappe.msgprint(__("Oppgi næringsandel fra 1 til 100 prosent. MVA-andelen kan ikke være høyere enn næringsandelen."));
 					return;
-		}
-
+				}
 				if (!Number.isFinite(tax_deductible_fraction) || tax_deductible_fraction < 0 || tax_deductible_fraction > 1) {
 					frappe.msgprint(__("Den skattemessige fradragsandelen må være fra 0 til 100 prosent."));
 					return;
 				}
 				if (tax_deductible_fraction < 1 && !values.tax_adjustment_reason?.trim()) {
-					frappe.msgprint(__("Forklar hvorfor den skattemessige fradragsandelen er redusert."));
+					frappe.msgprint(__("Forklar hvorfor fradraget er redusert."));
 					return;
 				}
-				if (tax_deductible_fraction < 1 && (values.foreign_service || values.category === "asset")) {
-					frappe.msgprint(__("Redusert skattemessig fradrag for utenlandske tjenester eller utstyr må avklares før bokføring."));
-					return;
-				}
-				if (["equipment", "asset"].includes(values.category) && !values.expected_life_months) {
-					frappe.msgprint(__("Oppgi forventet brukstid for utstyr eller eiendel."));
+				if (values.category === "equipment" && !values.expected_life_months) {
+					frappe.msgprint(__("Oppgi hvor lenge du regner med å bruke utstyret."));
 					return;
 				}
 				this.create_draft(dialog, "enk_norge.api.create_purchase", {
@@ -930,8 +1640,8 @@ class EnkNorgePage {
 					freeze_message: __("Lager signert journalutkast"),
 					callback: (response) => {
 						dialog.hide();
-						frappe.show_alert({ message: __("Signert journalutkast er klart. Kontroller oppgjør, kildefil og kontering før du bokfører."), indicator: "blue" });
-						frappe.set_route("Form", response.message.doctype, response.message.name);
+						frappe.show_alert({ message: __("Oppgjøret er laget som kladd. Kontroller det og bokfør."), indicator: "blue" });
+						this.open_document(response.message.doctype, response.message.name);
 					},
 				});
 			},
@@ -1223,10 +1933,13 @@ class EnkNorgePage {
 			freeze_message: __("Oppretter utkast"),
 			callback: (response) => {
 				dialog?.hide();
-				if (response.message?.doctype && response.message?.name) {
+				if (["Sales Invoice", "Purchase Invoice", "Payment Entry", "Journal Entry"].includes(response.message?.doctype) && response.message?.name) {
+					this.open_document(response.message.doctype, response.message.name);
+				} else if (response.message?.doctype && response.message?.name) {
 					frappe.set_route("Form", response.message.doctype, response.message.name);
 				} else {
-					this.load_dashboard({ company: args.company });
+					frappe.show_alert({ message: __("Ferdig."), indicator: "green" });
+					this.route();
 				}
 			},
 		});
@@ -1241,10 +1954,40 @@ class EnkNorgePage {
 			freeze_message: __("Oppretter kladd"),
 			callback: (response) => {
 				dialog.hide();
-				frappe.set_route("Form", response.message.doctype, response.message.name);
+				if (response.message.reused) {
+					frappe.show_alert({ message: __("Bilaget fantes allerede. Viser det eksisterende."), indicator: "blue" });
+				}
+				this.open_document(response.message.doctype, response.message.name);
 			},
 		});
 	}
+}
+
+function format_money(value, currency = "NOK") {
+	const number = typeof value === "number" ? value : Number(value);
+	return format_currency(Number.isFinite(number) ? number : 0, currency || "NOK");
+}
+
+function enk_doctype_label(doctype, doc = {}) {
+	if (doc.is_return) return __("Kreditnota");
+	return {
+		"Sales Invoice": __("Faktura"),
+		"Purchase Invoice": __("Kjøp"),
+		"Payment Entry": __("Betaling"),
+		"Journal Entry": __("Postering"),
+	}[doctype] || doctype;
+}
+
+function enk_status_pill(status) {
+	const [label, color] = {
+		draft: [__("Kladd"), "orange"],
+		unpaid: [__("Ikke betalt"), "red"],
+		paid: [__("Betalt"), "green"],
+		credit_note: [__("Kreditnota"), "gray"],
+		posted: [__("Bokført"), "green"],
+		cancelled: [__("Annullert"), "gray"],
+	}[status] || [status, "gray"];
+	return `<span class="indicator-pill ${color} enk-status">${label}</span>`;
 }
 
 function format_nok(value) {

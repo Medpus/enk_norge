@@ -17,6 +17,7 @@ class SetupCompletionTest(unittest.TestCase):
 				"enk_norge.setup.disable_future_access",
 				side_effect=lambda: events.append("native"),
 			),
+			patch("enk_norge.setup.quiet_desk", side_effect=lambda: events.append("quiet")),
 			patch.object(
 				frappe.db,
 				"set_default",
@@ -30,6 +31,7 @@ class SetupCompletionTest(unittest.TestCase):
 			[
 				"clear",
 				"native",
+				"quiet",
 				("desktop:home_page", "enk-norge"),
 				"clear",
 			],

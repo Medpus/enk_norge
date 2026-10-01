@@ -5,3 +5,5 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 enk_norge.patches.repair_completed_setup_home_page
+enk_norge.patches.quiet_desk_for_enk_sites
+enk_norge.patches.give_enk_owners_party_roles
