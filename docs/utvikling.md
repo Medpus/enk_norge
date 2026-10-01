@@ -110,7 +110,8 @@ site og sender HTTP-kall dit, også når nettleseren åpner et separat testsite.
 `frappe.boot.sitename` før en browser-test oppretter data.
 
 Ved PDF-test fra et separat lokalt site må sitets `host_name` peke til containerens interne
-webport, for eksempel `http://onboarding.localhost:8000`. Nettleseren bruker fortsatt
+webport, for eksempel `http://onboarding.localhost:8000`. Det gjelder også `dev.localhost` og
+`fersk.localhost`, som begge har innstillingen. Nettleseren bruker fortsatt
 vertsporten 8001. Uten dette prøver wkhtmltopdf i containeren å hente utskriftsressurser på
 vertsporten og feiler med `ConnectionRefusedError`. Dette er bare en lokal testinnstilling;
 produksjonens interne URL må verifiseres separat.

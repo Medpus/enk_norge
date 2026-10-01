@@ -32,7 +32,8 @@ Ingen filer i ERPNext eller Frappe endres.
 ## Testmiljø og bevis
 
 Integrasjonstestene kjører bare på `test.localhost` og tilbakefører databasetransaksjonene.
-Nettlesertestene bruker `onboarding.localhost`, et eget site med fiktivt foretak.
+Nettlesertestene bruker egne sites med fiktive foretak: `onboarding.localhost`, `dev.localhost` og
+`fersk.localhost`, som ble satt opp fra tomt med veiviseren.
 Testene omfatter blant annet rettigheter mellom foretak, endrede kildebilag, duplikater,
 stengte perioder og avstemming mot hovedbok. Rene beregningstester kjører også i CI.
 
