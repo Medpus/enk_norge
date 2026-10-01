@@ -562,3 +562,13 @@ def is_supported_deferral_posting(entry: Any) -> bool:
 		return invoice.docstatus == 1 and _date(invoice.posting_date, "Fakturadato").year == 2026
 	except Exception:
 		return False
+
+
+def _wl(fn, methods=None):
+	try:
+		return _frappe().whitelist(methods=methods)(fn)
+	except ModuleNotFoundError:
+		return fn
+
+
+create_revenue_recognition_draft = _wl(create_revenue_recognition_draft, methods=["POST"])

@@ -157,6 +157,8 @@ class BillingWorkflowTest(unittest.TestCase):
 		draft = make_sales_invoice(timesheet.name, self.item.name, self.customer.name, currency="NOK")
 		draft.customer_address = self.address.name
 		draft.posting_date = "2026-09-17"
+		# Uten fast bokføringsdato bruker ERPNext dagens dato, og forfallet kan da havne før den.
+		draft.set_posting_time = 1
 		draft.due_date = "2026-10-01"
 		draft.currency = "NOK"
 		draft.conversion_rate = 1
