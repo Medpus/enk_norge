@@ -120,6 +120,20 @@ labelen «for konsistens».
 - Førstegangsoppsettet må avsluttes med Frappes `disable_future_access()` og en gyldig
   `desktop:home_page`. Bare å sette `setup_complete` etterlater veiviseren som startside
   og kan gi en omlastingsløkke på `/desk`. Test ny innlogging etter oppsett, også som vanlig bruker.
+- Test ENK-flyter som en vanlig eierbruker med `OWNER_ROLES`, ikke som Administrator. Kunder krever
+  Sales User og leverandører Purchase Master Manager. `frappe.get_list` på barnetabeller som
+  Purchase Taxes and Charges feiler for vanlige brukere; les radene fra det lastede bilaget.
+- Et site laget med ENK-veiviseren har ikke ERPNexts eksempeldata. Varegruppetreet kan være tomt,
+  og standardgrupper som «Services» mangler. Opprett eller finn roten før du lager en vare.
+- En `frappe.ui.Dialog` krasjer når en sammenleggbar seksjon (`collapsible: 1`) inneholder et
+  påkrevd felt. Gi feltet standardverdi og valider i koden i stedet.
+- Beløp fra API-et er tekst med punktum. Gjør dem til `Number` før de blir standardverdi i et
+  valutafelt, ellers leser det norske formatet punktum som tusenskille og 12000.0 blir 120 000.
+- ERPNexts Subscription lager fakturakladder automatisk hver natt. Kladdene mangler ENK-feltene og
+  blokkerer periodens ENK-faktura. Abonnement videreføres derfor fra forrige bokførte faktura.
+- En funksjon som kalles fra grensesnittet må være hvitelistet. Sjekk alle `method:`-kall mot
+  `frappe.whitelisted` etter endringer; inntektsføring av abonnement manglet dette lenge uten at
+  noen test merket det.
 - Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.
   ENK-fakturaens nedlasting bruker site-innstillingen `enk_pdf_asset_origin` for interne
   statiske ressurser. Se deploy-veiledningen. Ikke sett offentlig `host_name` til en intern URL.

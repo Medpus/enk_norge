@@ -32,8 +32,8 @@ regnskap krever avklart inngående balanse og første fakturanummer.
 `enk_norge.setup.list_companies()` lister foretak og oppsettsstatus. `create_company(data)`
 oppretter foretaket med data fra oppstartsflaten. Daglig oversikt samler lagrede kladder,
 oppfølging, bankavstemming og avgrensede utkast for rapportering, saldogrupper og driftsmidler.
-Salg og kjøp opprettes som ERPNext-kladd og åpnes i native skjema for vedlegg, kontroll og
-bokføring. Foretaksdata er alltid konfigurasjon per Company og blir aldri hardkodet.
+Salg og kjøp opprettes som ERPNext-kladd og vises i ENK-sidens egen bilagsvisning med
+vedlegg, kontroll og bokføring. Brukeren skal ikke trenge ERPNexts skjemaer. Foretaksdata er alltid konfigurasjon per Company og blir aldri hardkodet.
 
 ## Evidence on Hand
 

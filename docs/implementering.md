@@ -16,16 +16,17 @@ Ingen filer i ERPNext eller Frappe endres.
 
 | Arbeidsflyt | Implementasjon og kontroll |
 |---|---|
-| Oppstart | Veiviser med foretak, adresse, bank, registreringsstatus og regnskapshistorikk. Foretaksdata er konfigurasjon. |
+| Oppstart | Veiviser med foretak, adresse, bank, registreringsstatus og regnskapshistorikk. Foretaksdata er konfigurasjon. Eieren får rollene som trengs for kunder og leverandører. |
+| Arbeidsflate | ENK-siden er eneste flate for daglig bruk: bilagsliste med søk og filtre, bilagsvisning med bokføring, vedlegg, PDF, betaling og kreditnota, og egne skjemaer for kunde, leverandør, timer og MVA-status. Sidemenyen viser bare ENK-sidene, og ERPNexts lagerveileder og versjonsvarsler er slått av. |
 | Kjøp og salg | Bilagsvedlegg, privat betaling, fradragsfordeling, fakturaserie, levering, kreditnota og periodestenging. |
 | MVA | Norske satser, registreringsgrense, registreringsovergang, utenlandske tjenester og rapportgrunnlag med kildebilag. |
 | Bank | CSV-import med bevart privat kildefil, delbetaling, gebyr, valuta og duplikatvern. Tilknyttede valutaposteringer bokføres og reverseres sammen med betalingen. |
 | Eksterne oppgjør | Avstemming av eksisterende fakturaer og kreditnotaer mot nettooppgjør og dokumenterte gebyrer i NOK. |
-| Konsulenttimer | Fakturautkast fra ERPNext Timesheet med bevart timekobling og vern mot dobbeltfakturering. |
-| Abonnement | Dokumentert tjenesteperiode, utsatt inntekt, periodiseringsutkast og full refusjon. Fakturaer utstedes ikke automatisk. |
-| Driftsmidler | Dokumenterte anskaffelser, saldogruppe a og d, avskrivning og avgrenset salg/uttak med avstemming av bokført verdi og skattesaldo. |
+| Konsulenttimer | Timer føres per kunde i ERPNext Timesheet og faktureres samlet med bevart timekobling og vern mot dobbeltfakturering. |
+| Abonnement | Dokumentert tjenesteperiode, utsatt inntekt, periodiseringsutkast og full refusjon. Neste periode lages fra forrige bokførte faktura. ERPNexts Subscription brukes ikke i flaten, fordi den lager fakturakladder automatisk. |
+| Driftsmidler | Regelmotoren avgjør aktivering. Aktiverte kjøp legges i saldogruppe a eller d fra kjøpet, avskrivning og avgrenset salg/uttak med avstemming av bokført verdi og skattesaldo. |
 | Årsoppgjør | Hovedbok fordelt på rapportkoder, skatteavstemming, saldoberegning og grunnlag for beregnet personinntekt. |
-| Rapportarkiv | Versjoner av MVA- og årsgrunnlag, avstemming og brukerens innleveringskvittering. |
+| Rapportarkiv | Versjoner av MVA- og årsgrunnlag, avstemming og brukerens innleveringskvittering. MVA-siden dekker ordinær melding og omvendt avgiftsplikt for uregistrerte. |
 | SAF-T | Eksport mot Skatteetatens offisielle XSD 1.40 og avstemming mot hovedbok. |
 
 ## Testmiljø og bevis
@@ -42,14 +43,24 @@ egen bootrutine leverte ENK-siden som startside. Systemspråket ble `nb`. En fak
 verifisert som PDF. Full backup av testsite er gjenopprettet på isolert site; database,
 vedlegg og signert regnskapsutkast er kontrollert etter gjenoppretting.
 
+Arbeidsflaten er gått gjennom i nettleseren 2026-10-01, på PC og mobil, som eierbruker uten
+ERPNext-kunnskap. Et nytt `fersk.localhost` ble satt opp med veiviseren. Fakturaen gikk fra ny kunde
+via kladd, bokføring og PDF til registrert innbetaling. Et AI-abonnement fra en leverandør i USA ble
+ført med kvitteringsbilde fra mobil, bokført og betalt privat. En Mac til 35 000 kr ble aktivert
+automatisk og lagt i saldogruppe a med 10 500 kr i avskrivning. Timer ble ført og fakturert samlet.
+Abonnementsfakturaen fikk neste periode og inntektsføring. En Stripe-utbetaling med gebyr gjorde
+fakturaen betalt. Omvendt avgiftsplikt ble beregnet, postert, beregnet på nytt og markert levert med
+kvittering. Overgangen til MVA-registrert ga ordinær MVA-melding. Årsrapporten ble bygget med
+skattemessig avskrivning, og fakturaen fra det nye sitet ble hentet som PDF og kontrollert visuelt.
+
 Tower har daglig fullbackup og Nobara mottar en kryptert kopi. Begge kjøringene er
 prøvd. Se [backup og gjenoppretting](backup.md) for tidspunkt, bevaring og nøkkelbehov.
 Gjenoppretting i produksjon er ikke brukt som test.
 
 Sluttkontroll lokalt:
 
-- Samlet suite: 168 av 168 testtilfeller besto uten hoppede tester. Abonnementsflyten
-  er i tillegg kontrollert fra opprettelse med start i dag til neste sammenhengende periode.
+- Samlet suite: 178 av 178 testtilfeller besto uten hoppede tester. De enkle flytene kjører
+  som en vanlig eierbruker, ikke som Administrator, så manglende roller og rettigheter synes.
 - Rene Python-tester uten Frappe: 61 besto, 24 integrasjonstester ble eksplisitt hoppet over.
 - `ruff check`, Python-kompilering, JavaScript-syntaks og `git diff --check` besto.
 - `bench migrate` på `dev.localhost`, `test.localhost` og `onboarding.localhost` besto.
@@ -99,7 +110,11 @@ kontrollen. Brukeren fullfører oppsettet selv etter [bruksveiledningen](bruk.md
 
 - Skattemelding og MVA-melding leveres manuelt. Appen gir grunnlag og lagrer kvittering;
   den har ingen verifisert direkteinnsending til Skatteetaten.
-- Bankkobling og EHF krever egne integrasjoner. Bankimporten bruker dokumentert CSV-format.
+- Bankkobling og EHF krever egne integrasjoner. Bankimporten bruker et eget dokumentert
+  CSV-format, ikke en norsk banks eksportformat. Import fra en norsk bank venter på en
+  eksempelfil fra banken. Bankavstemming skjer fortsatt i ERPNexts eget verktøy.
+- Salg gjennom Stripe forutsetter en bokført faktura per salg. Mange små abonnementssalg
+  direkte til forbrukere er ikke tilpasset ennå.
 - Lønn, varelager, kassasalg, særnæringer og salg av digitale tjenester til utenlandske
   privatkunder er ikke dekket av første regelsett. Ustøttede bokføringsveier sperres for ENK-foretak.
 - Driftsmiddelsalg er begrenset til dokumentert, allerede betalt salg med eksternt
