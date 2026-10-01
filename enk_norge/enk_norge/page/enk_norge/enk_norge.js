@@ -359,9 +359,6 @@ class EnkNorgePage {
 		const company = selected.company;
 		this.page.clear_actions();
 		this.page.set_title(__("Oversikt"));
-		if (selected.configured) {
-			this.page.set_primary_action(__("Ny faktura"), () => this.open_sale_dialog(company));
-		}
 		this.body.html(`
 			<section class="enk-dashboard" aria-labelledby="enk-dashboard-title">
 				<header class="enk-dashboard-header">
@@ -1076,7 +1073,7 @@ class EnkNorgePage {
 				...this.customer_fields(() => dialog),
 				{ fieldname: "description", label: __("Hva har du levert?"), fieldtype: "Small Text", reqd: 1, description: __("Står på fakturaen, for eksempel «Konsulentbistand september».") },
 				{ fieldtype: "Section Break" },
-				{ fieldname: "quantity", label: __("Antall"), fieldtype: "Float", default: 1, reqd: 1, description: __("Timer, stykk eller måneder.") },
+				{ fieldname: "quantity", label: __("Antall"), fieldtype: "Float", precision: 2, default: 1, reqd: 1, description: __("Timer, stykk eller måneder.") },
 				{ fieldtype: "Column Break" },
 				{ fieldname: "unit_price", label: __("Pris per enhet"), fieldtype: "Currency", reqd: 1, description: __("Uten MVA. MVA legges til hvis foretaket er registrert.") },
 				{ fieldtype: "Section Break" },
