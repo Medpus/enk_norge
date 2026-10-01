@@ -112,13 +112,8 @@ def _docs(company, start, end, doctype):
 
 
 def _taxes(doc):
-	f = _frappe()
-	return f.get_list(
-		"Sales Taxes and Charges" if doc.doctype == "Sales Invoice" else "Purchase Taxes and Charges",
-		filters={"parent": doc.name},
-		fields=["account_head", "tax_amount"],
-		limit_page_length=0,
-	)
+	# Barnetabeller kan ikke listes direkte av vanlige brukere. Radene følger det lastede bilaget.
+	return doc.get("taxes") or []
 
 
 def _gl(company, start, end, account):

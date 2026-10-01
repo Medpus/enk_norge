@@ -60,7 +60,9 @@ class TestSaftIntegration(TestCase):
 		cancelled = self.journal_entry("2026-09-18", 125)
 		cancelled.cancel()
 
-		start, end = date(2026, 9, 1), date(2026, 9, 30)
+		# Uforanderlig hovedbok fører tilbakeføringen på annulleringsdagen. Perioden må derfor
+		# dekke dagens dato, ellers avhenger testen av når den kjøres.
+		start, end = date(2026, 9, 1), date(2026, 12, 31)
 		data = _frappe_export_data(self.company, start, end)
 		active_rows = frappe.get_all(
 			"GL Entry",
