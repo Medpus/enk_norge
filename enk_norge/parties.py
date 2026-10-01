@@ -11,9 +11,11 @@ from enk_norge.api import _data
 
 
 def _root(doctype, preferred):
+	"""Bruk ERPNexts standardgruppe når den finnes, ellers rotgruppen i treet."""
 	if frappe.db.exists(doctype, preferred):
 		return preferred
-	return frappe.db.get_value(doctype, {"is_group": 1, "parent_" + frappe.scrub(doctype): ["in", ["", None]]}, "name")
+	# ENK-veiviseren installerer ikke ERPNexts eksempelgrupper. Roten har lavest lft.
+	return frappe.get_all(doctype, filters={"is_group": 1}, order_by="lft asc", limit=1, pluck="name")[0]
 
 
 def _clean(value, label, required=True, limit=140):

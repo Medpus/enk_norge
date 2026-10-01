@@ -17,9 +17,14 @@ HOURS_ITEM = "ENK Konsulenttimer"
 
 def hours_item():
 	if not frappe.db.exists("Item", HOURS_ITEM):
-		group = "Services" if frappe.db.exists("Item Group", "Services") else frappe.db.get_value(
-			"Item Group", {"is_group": 1, "parent_item_group": ["in", ["", None]]}, "name"
-		)
+		from enk_norge.parties import _root
+
+		if not frappe.db.count("Item Group"):
+			# ENK-veiviseren kjører ikke ERPNexts fulle eksempeloppsett, så varetreet kan være tomt.
+			frappe.get_doc(dict(doctype="Item Group", item_group_name="All Item Groups", is_group=1)).insert(
+				ignore_permissions=True
+			)
+		group = _root("Item Group", "Services")
 		# Fast teknisk vare for timefakturaer. Brukeren skal ikke trenge varerettigheter for å føre timer.
 		frappe.get_doc(
 			dict(

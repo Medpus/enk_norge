@@ -383,7 +383,6 @@ class EnkNorgePage {
 							</div>
 							<div class="enk-action-row">
 								<button class="btn btn-default btn-sm" type="button" data-action="invoice-hours">${__("Fakturer timer")}</button>
-								<button class="btn btn-default btn-sm" type="button" data-action="invoice-subscription">${__("Fakturer abonnement")}</button>
 								<button class="btn btn-default btn-sm" type="button" data-action="new-customer">${__("Ny kunde")}</button>
 								<button class="btn btn-default btn-sm" type="button" data-action="new-supplier">${__("Ny leverandør")}</button>
 							</div>
@@ -414,7 +413,6 @@ class EnkNorgePage {
 		on("new-purchase", () => this.open_purchase_dialog(company));
 		on("log-hours", () => this.open_log_hours_dialog(company));
 		on("invoice-hours", () => this.open_invoice_hours_dialog(company));
-		on("invoice-subscription", () => this.open_subscription_invoice_dialog(company));
 		on("new-customer", () => this.open_customer_dialog(() => this.load_dashboard({ company, configured: true })));
 		on("new-supplier", () => this.open_supplier_dialog(() => {}));
 		on("vat", () => frappe.set_route("enk-norge", "mva"));
@@ -809,7 +807,7 @@ class EnkNorgePage {
 				<tbody>${doc.lines.map((line) => `<tr><td>${escape(line.description)}</td><td class="text-right" data-label="${__("Debet")}">${Number(line.debit) ? money(line.debit) : ""}</td><td class="text-right" data-label="${__("Kredit")}">${Number(line.credit) ? money(line.credit) : ""}</td></tr>`).join("")}</tbody></table>`
 			: doc.lines.length
 				? `<table class="enk-lines"><thead><tr><th>${__("Beskrivelse")}</th>${is_invoice ? `<th class="text-right">${__("Antall")}</th><th class="text-right">${__("Pris")}</th>` : ""}<th class="text-right">${__("Beløp")}</th></tr></thead>
-					<tbody>${doc.lines.map((line) => `<tr><td>${escape(line.description || "")}</td>${is_invoice ? `<td class="text-right" data-label="${__("Antall")}">${escape(format_number(line.qty))}</td><td class="text-right" data-label="${__("Pris")}">${money(line.rate)}</td>` : ""}<td class="text-right" data-label="${__("Beløp")}">${money(line.amount)}</td></tr>`).join("")}</tbody></table>`
+					<tbody>${doc.lines.map((line) => `<tr><td>${escape(line.description || "")}</td>${is_invoice ? `<td class="text-right" data-label="${__("Antall")}">${escape(format_hours(line.qty))}</td><td class="text-right" data-label="${__("Pris")}">${money(line.rate)}</td>` : ""}<td class="text-right" data-label="${__("Beløp")}">${money(line.amount)}</td></tr>`).join("")}</tbody></table>`
 				: "";
 		const totals = is_invoice
 			? [[__("Ekskl. MVA"), doc.net_total], [__("MVA"), doc.tax_total], [__("Totalt"), doc.grand_total], ...(doc.docstatus === 1 && !doc.is_return ? [[__("Gjenstår å betale"), doc.outstanding_amount]] : [])]
@@ -886,8 +884,14 @@ class EnkNorgePage {
 				add("private-payment", __("Betalt med egne penger"));
 			}
 		}
+		if (doc.docstatus === 1 && Number(doc.tax_pool_remaining) > 0) {
+			add("tax-pool", __("Legg i saldogruppe"), doc.status !== "unpaid");
+		}
 		if (doc.docstatus === 1 && ["Sales Invoice", "Purchase Invoice"].includes(doc.doctype) && !doc.is_return) {
-			if (doc.deferred) add("recognize", __("Inntektsfør opptjent del"));
+			if (doc.deferred && doc.doctype === "Sales Invoice") {
+				add("next-period", __("Lag faktura for neste periode"));
+				add("recognize", __("Inntektsfør opptjent del"));
+			}
 			add("credit-note", __("Lag kreditnota"));
 		}
 		return buttons.join("");
@@ -936,7 +940,53 @@ class EnkNorgePage {
 		on("private-payment", () => actions.pay_privately(doc, open_created));
 		on("credit-note", () => actions.credit_note(doc, open_created));
 		on("recognize", () => actions.recognize_revenue(doc, open_created));
+		on("tax-pool", () => this.open_add_to_tax_pool_dialog(doc, reload));
+		on("next-period", () => frappe.call({
+			method: "enk_norge.documents.create_next_period",
+			args: { name: doc.name },
+			freeze: true,
+			callback: (response) => open_created(response.message),
+		}));
 		this.body.find(".enk-upload-input").on("change", (event) => this.upload_attachment(doc, event.target, reload));
+	}
+
+	open_add_to_tax_pool_dialog(doc, done) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Legg i saldogruppe"),
+			fields: [
+				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Utstyret er aktivert og skal avskrives over flere år. Velg gruppen det hører til. {0} legges i gruppen.", [frappe.utils.escape_html(format_nok(doc.tax_pool_remaining))])}</p>` },
+				{
+					fieldname: "saldo_group",
+					label: __("Saldogruppe"),
+					fieldtype: "Select",
+					options: [
+						{ label: __("a: kontormaskiner, PC, Mac og telefon (30 % i året)"), value: "a" },
+						{ label: __("d: maskiner, inventar og verktøy (20 % i året)"), value: "d" },
+					],
+					default: "a",
+					reqd: 1,
+				},
+			],
+			primary_action_label: __("Legg i gruppen"),
+			primary_action: (values) => frappe.call({
+				method: "enk_norge.documents.add_to_tax_pool",
+				args: { name: doc.name, saldo_group: values.saldo_group },
+				btn: dialog.get_primary_btn(),
+				callback: (response) => {
+					dialog.hide();
+					frappe.msgprint({
+						title: __("Lagt i saldogruppe {0}", [response.message.saldo_group]),
+						message: __("Skattemessig avskrivning i år blir {0}. Saldoen som avskrives videre neste år er {1}.", [
+							frappe.utils.escape_html(format_nok(response.message.depreciation_deduction)),
+							frappe.utils.escape_html(format_nok(response.message.closing_balance)),
+						]),
+						indicator: "green",
+					});
+					done();
+				},
+			}),
+		});
+		dialog.show();
 	}
 
 	async upload_attachment(doc, input, done) {
@@ -1046,7 +1096,7 @@ class EnkNorgePage {
 				{ fieldname: "conversion_rate", label: __("Kurs til NOK"), fieldtype: "Float", precision: 6, depends_on: "eval:doc.currency!='NOK'", description: __("NOK per enhet i valutaen.") },
 				{ fieldname: "exchange_rate_source", label: __("Kurskilde"), fieldtype: "Data", depends_on: "eval:doc.currency!='NOK'", description: __("For eksempel Norges Bank eller bankens kurs.") },
 				{ fieldname: "exchange_rate_date", label: __("Kursdato"), fieldtype: "Date", depends_on: "eval:doc.currency!='NOK'" },
-				{ fieldname: "defer_revenue", label: __("Forskuddsbetalt abonnement som skal inntektsføres over perioden"), fieldtype: "Check", change: () => this.toggle_subscription_fields(dialog) },
+				{ fieldname: "defer_revenue", label: __("Abonnement eller forskudd for en periode"), fieldtype: "Check", change: () => this.toggle_subscription_fields(dialog), description: __("Inntekten fordeles over perioden. Etter bokføring kan du lage neste periode med ett klikk.") },
 				{ fieldname: "service_start_date", label: __("Tjenestestart"), fieldtype: "Date", depends_on: "eval:doc.defer_revenue" },
 				{ fieldname: "service_end_date", label: __("Tjenesteslutt"), fieldtype: "Date", depends_on: "eval:doc.defer_revenue" },
 				{
@@ -1118,6 +1168,7 @@ class EnkNorgePage {
 	async fill_billing_address(dialog) {
 		const customer = dialog.get_value("customer");
 		const display = dialog.get_field("address_display");
+		if (!display) return;
 		dialog.set_value("customer_address", "");
 		display.$wrapper.html("");
 		if (!customer) return;
@@ -1250,7 +1301,7 @@ class EnkNorgePage {
 				callback: (response) => {
 					const summary = response.message;
 					frappe.show_alert({
-						message: __("Lagret. {0} timer venter på fakturering hos {1}.", [format_number(summary.hours), frappe.utils.escape_html(summary.customer_name)]),
+						message: __("Lagret. {0} timer venter på fakturering hos {1}.", [format_hours(summary.hours), frappe.utils.escape_html(summary.customer_name)]),
 						indicator: "green",
 					});
 					dialog.set_value("hours", "");
@@ -1274,12 +1325,12 @@ class EnkNorgePage {
 			return;
 		}
 		const escape = frappe.utils.escape_html;
-		const options = groups.map((group) => ({ label: `${group.customer_name}: ${format_number(group.hours)} t, ${format_nok(group.amount)}`, value: group.timesheet }));
+		const options = groups.map((group) => ({ label: `${group.customer_name}: ${format_hours(group.hours)} t, ${format_nok(group.amount)}`, value: group.timesheet }));
 		const render_logs = (dialog) => {
 			const group = groups.find((item) => item.timesheet === dialog.get_value("timesheet"));
 			if (!group) return;
 			dialog.get_field("logs").$wrapper.html(`<table class="enk-lines"><thead><tr><th>${__("Dato")}</th><th>${__("Arbeid")}</th><th class="text-right">${__("Timer")}</th><th class="text-right">${__("Beløp")}</th><th></th></tr></thead><tbody>
-				${group.logs.map((log) => `<tr><td>${frappe.datetime.str_to_user(log.date)}</td><td>${escape(log.description || "")}</td><td class="text-right">${format_number(log.hours)}</td><td class="text-right">${escape(format_nok(log.amount))}</td>
+				${group.logs.map((log) => `<tr><td>${frappe.datetime.str_to_user(log.date)}</td><td>${escape(log.description || "")}</td><td class="text-right">${format_hours(log.hours)}</td><td class="text-right">${escape(format_nok(log.amount))}</td>
 					<td class="text-right">${group.docstatus === 0 ? `<button type="button" class="btn btn-xs btn-default" data-remove-row="${escape(log.row)}" aria-label="${__("Fjern")}">${__("Fjern")}</button>` : ""}</td></tr>`).join("")}
 			</tbody></table>`);
 			dialog.get_field("logs").$wrapper.find("[data-remove-row]").on("click", (event) => {
@@ -1314,46 +1365,6 @@ class EnkNorgePage {
 		});
 		dialog.show();
 		render_logs(dialog);
-	}
-
-	open_subscription_invoice_dialog(company) {
-		const dialog = new frappe.ui.Dialog({
-			title: __("Fakturer abonnement"),
-			fields: [
-				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Bruk abonnementets aktive periode, eller neste direkte sammenhengende periode når den forrige er bokført. Slå av «Submit Generated Invoices». Flyten lager bare kladd, hopper aldri over en periode og avviser overlappende faktura.")}</p>` },
-				{ fieldname: "subscription", label: __("Abonnement"), fieldtype: "Link", options: "Subscription", only_select: 1, reqd: 1 },
-				...this.customer_fields(() => dialog),
-				{ fieldname: "posting_date", label: __("Fakturadato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-				{ fieldname: "delivery_date", label: __("Leveringsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-				{ fieldname: "delivery_description", label: __("Hva er levert?"), fieldtype: "Small Text", reqd: 1 },
-				{ fieldname: "due_date", label: __("Forfallsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-				{ fieldname: "service_start_date", label: __("Tjenestestart"), fieldtype: "Date", reqd: 1 },
-				{ fieldname: "service_end_date", label: __("Tjenesteslutt"), fieldtype: "Date", reqd: 1 },
-				{
-					fieldname: "subscription_source_file",
-					label: __("Privat avtaledokument"),
-					fieldtype: "Attach",
-					options: { make_attachments_public: false },
-					reqd: 1,
-					description: __("Avtalen må ligge som privat fil og dokumentere perioden."),
-				},
-				...this.sale_tax_fields(),
-			],
-			primary_action_label: __("Opprett kladd"),
-			primary_action: async (values) => {
-				if (!this.validate_tax_reason(values)) return;
-				delete values.address_display;
-				if (values.service_end_date < values.service_start_date || values.posting_date > values.service_start_date) {
-					frappe.msgprint(__("Tjenesteperioden må være sammenhengende, og fakturaen må være før eller på tjenestestart."));
-					return;
-				}
-				const file = await this.private_file_name(values.subscription_source_file, __("avtaledokumentet"));
-				if (!file) return;
-				values.subscription_source_file = file;
-				this.create_draft(dialog, "enk_norge.billing.create_subscription_invoice_draft", { company, ...values });
-			},
-		});
-		dialog.show();
 	}
 
 	sale_tax_fields() {
@@ -1574,42 +1585,42 @@ class EnkNorgePage {
 		const invoices = [];
 		const credit_notes = [];
 		const dialog = new frappe.ui.Dialog({
-			title: __("Oppgjør fra betalingsformidler"),
+			title: __("Utbetaling fra Stripe e.l."),
 			fields: [
-				{ fieldtype: "HTML", fieldname: "settlement_intro", options: `<p class="text-muted small">${__("Bruk denne flyten når foretaket er direkte selger. Oppgjøret er bare i NOK og lager et signert journalutkast for kontroll før bokføring.")}</p>` },
-				{ fieldname: "external_settlement_id", label: __("Oppgjørs-ID fra betalingsformidleren"), fieldtype: "Data", reqd: 1 },
+				{ fieldtype: "HTML", fieldname: "settlement_intro", options: `<p class="text-muted small">${__("Bruk dette når Stripe, Vipps eller en lignende tjeneste har betalt ut penger for fakturaer du har bokført. Utbetalingen må være i NOK.")}</p>` },
+				{ fieldname: "external_settlement_id", label: __("Utbetalings-ID"), fieldtype: "Data", reqd: 1, description: __("Står i oversikten fra Stripe, for eksempel «po_...».") },
 				{ fieldname: "posting_date", label: __("Bokføringsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
 				{
 					fieldname: "source_file",
-					label: __("Privat oppgjørsfil"),
+					label: __("Rapport for utbetalingen"),
 					fieldtype: "Attach",
 					options: { make_attachments_public: false },
 					reqd: 1,
-					description: __("Last opp kildefilen privat. Den knyttes til journalutkastet og må bevares uendret."),
+					description: __("CSV eller PDF fra Stripe. Den lagres som bilag og skal ikke endres."),
 				},
-				{ fieldname: "merchant_of_record_confirmed", label: __("Jeg bekrefter at foretaket er direkte selger"), fieldtype: "Check", reqd: 1 },
+				{ fieldname: "merchant_of_record_confirmed", label: __("Foretaket selger selv til kundene, og Stripe er bare betalingstjeneste"), fieldtype: "Check", reqd: 1 },
 				{ fieldtype: "Section Break", label: __("Fakturaer i oppgjøret") },
-				{ fieldname: "invoice", label: __("Bokført salgsfaktura"), fieldtype: "Link", options: "Sales Invoice" },
+				{ fieldname: "invoice", label: __("Bokført salgsfaktura"), fieldtype: "Link", options: "Sales Invoice", only_select: 1 },
 				{ fieldname: "invoice_amount", label: __("Beløp i oppgjøret (NOK)"), fieldtype: "Currency", options: "NOK" },
 				{ fieldname: "add_invoice", label: __("Legg til faktura"), fieldtype: "Button", click: () => this.add_settlement_reference(dialog, invoices, "invoice", "invoice_amount", false) },
 				{ fieldname: "invoice_list", fieldtype: "HTML" },
 				{ fieldtype: "Section Break", label: __("Kreditnotaer i oppgjøret") },
-				{ fieldname: "credit_note", label: __("Bokført kreditnota"), fieldtype: "Link", options: "Sales Invoice" },
+				{ fieldname: "credit_note", label: __("Bokført kreditnota"), fieldtype: "Link", options: "Sales Invoice", only_select: 1 },
 				{ fieldname: "credit_note_amount", label: __("Refusjon i oppgjøret (NOK)"), fieldtype: "Currency", options: "NOK" },
 				{ fieldname: "add_credit_note", label: __("Legg til kreditnota"), fieldtype: "Button", click: () => this.add_settlement_reference(dialog, credit_notes, "credit_note", "credit_note_amount", true) },
 				{ fieldname: "credit_note_list", fieldtype: "HTML" },
 				{ fieldtype: "Section Break", label: __("Avstemming") },
 				{
 					fieldname: "fee",
-					label: __("Bank- eller betalingsgebyr (NOK)"),
+					label: __("Gebyr trukket av Stripe (NOK)"),
 					fieldtype: "Currency",
 					options: "NOK",
 					default: 0,
-					description: __("Bare gebyr uten MVA. Avgiftspliktige formidlertjenester føres som eget dokumentert kjøp."),
+					description: __("Bare gebyr uten MVA. Får du faktura med MVA for tjenesten, føres den som eget kjøp."),
 				},
-				{ fieldname: "net_amount", label: __("Netto utbetaling på oppgjørsfilen (NOK)"), fieldtype: "Currency", options: "NOK", reqd: 1 },
+				{ fieldname: "net_amount", label: __("Beløp utbetalt til banken (NOK)"), fieldtype: "Currency", options: "NOK", reqd: 1 },
 			],
-			primary_action_label: __("Lag signert journalutkast"),
+			primary_action_label: __("Lag kladd"),
 			primary_action: async (values) => {
 				const gross = this.settlement_total(invoices);
 				const refunds = this.settlement_total(credit_notes);
@@ -1624,12 +1635,12 @@ class EnkNorgePage {
 					return;
 				}
 				if (!Number.isFinite(fee) || fee < 0 || !Number.isFinite(net) || net <= 0 || Math.abs(gross - refunds - fee - net) > 0.004) {
-					frappe.msgprint(__("Brutto salg minus refusjoner og gebyr må være lik netto utbetaling på oppgjørsfilen."));
+					frappe.msgprint(__("Fakturaene minus refusjoner og gebyr må bli det samme som beløpet som ble utbetalt."));
 					return;
 				}
 				const file = await frappe.db.get_value("File", { file_url: values.source_file }, "name");
 				if (!file.message?.name) {
-					frappe.msgprint(__("Oppgjørsfilen ble ikke funnet. Last den opp på nytt som privat fil."));
+					frappe.msgprint(__("Rapporten for utbetalingen ble ikke funnet. Last den opp på nytt."));
 					return;
 				}
 				frappe.call({
@@ -1637,7 +1648,7 @@ class EnkNorgePage {
 					args: { data: { company, ...values, source_file: file.message.name, currency: "NOK", merchant_of_record: "Direct seller", invoices, credit_notes } },
 					btn: dialog?.get_primary_btn(),
 					freeze: true,
-					freeze_message: __("Lager signert journalutkast"),
+					freeze_message: __("Lager kladd"),
 					callback: (response) => {
 						dialog.hide();
 						frappe.show_alert({ message: __("Oppgjøret er laget som kladd. Kontroller det og bokfør."), indicator: "blue" });
@@ -1894,17 +1905,48 @@ class EnkNorgePage {
 		dialog.$wrapper.addClass("enk-year-report-dialog");
 		dialog.$body.html(`<div class="enk-year-report-result">
 			<p class="text-muted">${__("Hovedbok er fordelt på rapportkoder. Skattemessige korreksjoner vises separat. Kontroller grunnlaget før eventuell manuell levering; det kan ikke sendes blindt til Skatteetaten.")}</p>
-			<div class="enk-year-status"><span>${__("Status")}</span><strong>${safe(report.status)}</strong><span>${__("Revisjon")}</span><strong>${safe(report.revision)}</strong></div>
+			<div class="enk-year-status"><span>${__("Status")}</span><strong>${safe({ "Draft": __("Utkast"), "Ready for review": __("Klar til levering"), "Manually filed": __("Levert") }[report.status] || report.status)}</strong><span>${__("Revisjon")}</span><strong>${safe(report.revision)}</strong></div>
 			<h4>${__("Hovedbok fordelt på rapportkoder")}</h4>
 			<div class="enk-year-table-wrap"><table class="table table-bordered"><thead><tr><th>${__("Kategori")}</th><th>${__("Rapportkode")}</th><th class="text-right">${__("Beløp")}</th><th>${__("Kontoer")}</th></tr></thead><tbody>${return_rows}</tbody></table></div>
 			<h4>${__("Skatteavstemming")}</h4>
 			<div class="enk-year-table-wrap"><table class="table table-bordered"><tbody>${bridge_rows}</tbody></table></div>
 			<h4>${__("Personinntekt og avklaringer")}</h4>${personal}${clarifications}${pools}
 		</div>`);
-		dialog.get_primary_btn().html(__("Åpne årsrapport")).off("click").on("click", () => {
-			frappe.set_route("Form", "ENK Year Report", report.name);
-			dialog.hide();
+		const ready = report.status === "Ready for review";
+		dialog.$body.find(".enk-year-report-result").append(ready
+			? `<section class="enk-attachments">
+				<h4>${__("Lever skattemeldingen")}</h4>
+				<p class="text-muted">${__("Før tallene inn i skattemeldingen og næringsspesifikasjonen hos Skatteetaten. Last deretter opp kvitteringen, så markeres årsoppgjøret som levert.")}</p>
+				<label class="btn btn-default btn-sm enk-upload">${__("Last opp kvittering og marker levert")}<input type="file" accept="image/*,application/pdf" class="enk-year-receipt"></label>
+				<p class="enk-upload-status text-muted small" role="status"></p>
+			</section>`
+			: report.status === "Manually filed" ? `<p class="text-muted">${__("Årsoppgjøret er markert som levert.")}</p>` : "");
+		dialog.$body.find(".enk-year-receipt").on("change", async (event) => {
+			const file = event.target.files?.[0];
+			if (!file) return;
+			const status = dialog.$body.find(".enk-upload-status");
+			status.text(__("Laster opp {0}", [file.name]));
+			const form = new FormData();
+			form.append("file", file, file.name);
+			form.append("is_private", "1");
+			form.append("doctype", "ENK Year Report");
+			form.append("docname", report.name);
+			try {
+				const response = await fetch("/api/method/upload_file", { method: "POST", headers: { "X-Frappe-CSRF-Token": frappe.csrf_token, Accept: "application/json" }, body: form });
+				if (!response.ok) throw new Error(response.statusText);
+				const uploaded = (await response.json()).message;
+				const filed = await frappe.call({
+					method: "enk_norge.year_end.mark_year_report_manually_filed",
+					args: { company: report.company, income_year: report.income_year, private_receipt_file: uploaded.name },
+					freeze: true,
+				});
+				frappe.show_alert({ message: __("Årsoppgjøret er markert som levert."), indicator: "green" });
+				this.render_year_report_result(dialog, { ...report, ...filed.message });
+			} catch (error) {
+				status.text(__("Opplastingen feilet. Prøv igjen."));
+			}
 		});
+		dialog.get_primary_btn().html(__("Lukk")).off("click").on("click", () => dialog.hide());
 	}
 
 	open_saft_dialog(company) {
@@ -1961,6 +2003,10 @@ class EnkNorgePage {
 			},
 		});
 	}
+}
+
+function format_hours(value) {
+	return Number(value || 0).toLocaleString("nb-NO", { maximumFractionDigits: 2 });
 }
 
 function format_money(value, currency = "NOK") {

@@ -5,7 +5,7 @@ bokføre eller slette en kladd uten å åpne ERPNexts skjema.
 """
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import add_days, add_months, flt, getdate, today
 
 from enk_norge.setup import get_settings
 
@@ -155,6 +155,9 @@ def _summary(doc):
 		can_submit=doc.docstatus == 0 and frappe.has_permission(doc.doctype, "submit", doc),
 		can_delete=doc.docstatus == 0 and frappe.has_permission(doc.doctype, "delete", doc),
 	)
+	if doc.doctype == "Purchase Invoice" and doc.docstatus == 1:
+		activated, allocated = _activation(doc)
+		result.update(activated_amount=str(activated), tax_pool_remaining=str(activated - allocated))
 	if doc.doctype in ("Sales Invoice", "Purchase Invoice"):
 		result.update(
 			currency=doc.currency,
@@ -185,6 +188,75 @@ def _summary(doc):
 	return result
 
 
+def _activation(doc):
+	"""Aktivert beløp på kjøpet og hvor mye som alt ligger i en saldogruppe samme år."""
+	import json
+	from decimal import Decimal
+
+	settings = get_settings(doc.company)
+	activated = Decimal(
+		str(
+			frappe.db.sql(
+				"""select coalesce(sum(debit-credit),0) from `tabGL Entry`
+				where company=%s and voucher_type=%s and voucher_no=%s and account=%s and is_cancelled=0""",
+				(doc.company, doc.doctype, doc.name, settings.asset_account),
+			)[0][0]
+		)
+	).quantize(Decimal(".01"))
+	allocated = Decimal(0)
+	for pool in frappe.get_all(
+		"ENK Tax Pool",
+		filters={"company": doc.company, "income_year": getdate(doc.posting_date).year},
+		pluck="acquisition_sources_json",
+	):
+		for source in json.loads(pool or "[]"):
+			if source["doctype"] == doc.doctype and source["name"] == doc.name:
+				allocated += Decimal(str(source["amount"]))
+	return activated, allocated
+
+
+@frappe.whitelist(methods=["POST"])
+def add_to_tax_pool(name, saldo_group):
+	"""Legg et aktivert kjøp i årets saldogruppe. Gruppen opprettes ved første kjøp."""
+	import json
+
+	doc = _load("Purchase Invoice", name)
+	if doc.docstatus != 1:
+		frappe.throw("Kjøpet må være bokført før det legges i en saldogruppe.")
+	if saldo_group not in ("a", "d"):
+		frappe.throw("Velg saldogruppe a eller d.")
+	activated, allocated = _activation(doc)
+	remaining = activated - allocated
+	if activated <= 0:
+		frappe.throw("Kjøpet er ikke aktivert som driftsmiddel og skal ikke i en saldogruppe.")
+	if remaining <= 0:
+		frappe.throw("Kjøpet ligger allerede i en saldogruppe.")
+	year = getdate(doc.posting_date).year
+	existing = frappe.db.get_value(
+		"ENK Tax Pool", {"company": doc.company, "income_year": year, "saldo_group": saldo_group}, "name"
+	)
+	if existing:
+		pool = frappe.get_doc("ENK Tax Pool", existing)
+		pool.check_permission("write")
+	else:
+		frappe.has_permission("ENK Tax Pool", "create", throw=True)
+		pool = frappe.get_doc(
+			dict(doctype="ENK Tax Pool", company=doc.company, income_year=year, saldo_group=saldo_group, opening_balance=0)
+		)
+	sources = json.loads(pool.acquisition_sources_json or "[]")
+	sources.append(dict(doctype=doc.doctype, name=doc.name, amount=str(remaining)))
+	pool.acquisition_sources_json = json.dumps(sources)
+	pool.acquisitions = flt(pool.acquisitions) + float(remaining)
+	pool.save()
+	return dict(
+		name=pool.name,
+		saldo_group=pool.saldo_group,
+		acquisitions=str(pool.acquisitions),
+		depreciation_deduction=str(pool.depreciation_deduction),
+		closing_balance=str(pool.closing_balance),
+	)
+
+
 @frappe.whitelist()
 def get_document(doctype, name):
 	return _summary(_load(doctype, name))
@@ -209,3 +281,62 @@ def delete_draft(doctype, name):
 	company = doc.company
 	frappe.delete_doc(doctype, name)
 	return dict(company=company)
+
+
+def _next_period(start, end):
+	"""Neste periode har samme lengde. Hele måneder forblir hele måneder."""
+	start, end = getdate(start), getdate(end)
+	following = add_days(end, 1)
+	for months in range(1, 13):
+		if add_days(add_months(start, months), -1) == end:
+			return following, add_days(add_months(following, months), -1)
+	return following, add_days(following, (end - start).days)
+
+
+@frappe.whitelist(methods=["POST"])
+def create_next_period(name):
+	"""Lag kladd for neste abonnementsperiode fra en bokført, periodisert faktura."""
+	from enk_norge.api import create_sale
+
+	doc = _load("Sales Invoice", name)
+	if doc.docstatus != 1 or doc.is_return:
+		frappe.throw("Bare bokførte fakturaer kan videreføres.")
+	if len(doc.items) != 1 or not doc.items[0].enable_deferred_revenue or not doc.enk_subscription_source_file:
+		frappe.throw("Bare fakturaer for ett abonnement med periode og avtale kan videreføres.")
+	if (doc.currency or "NOK") != "NOK":
+		frappe.throw("Abonnement i utenlandsk valuta må faktureres med ny faktura, fordi kursen må dokumenteres.")
+	external_id = f"neste-periode:{doc.name}"
+	existing = frappe.db.get_value(
+		"Sales Invoice", {"company": doc.company, "enk_external_id": external_id, "docstatus": ["!=", 2]}, "name"
+	)
+	if existing:
+		return dict(doctype="Sales Invoice", name=existing, reused=True)
+	row = doc.items[0]
+	start, end = _next_period(row.service_start_date, row.service_end_date)
+	posting = min(getdate(today()), start)
+	source = frappe.get_doc("File", doc.enk_subscription_source_file)
+	source.check_permission("read")
+	# Avtalen kan bare knyttes til ett bilag, så neste periode får en egen kopi.
+	copy = frappe.get_doc(
+		dict(doctype="File", file_name=source.file_name, content=source.get_content(), is_private=1)
+	).insert()
+	treatment = doc.enk_tax_treatment if doc.enk_tax_treatment not in ("Not registered", "Domestic 25") else None
+	return create_sale(
+		dict(
+			company=doc.company,
+			customer=doc.customer,
+			customer_address=doc.customer_address,
+			posting_date=str(posting),
+			delivery_date=str(start),
+			due_date=str(add_days(posting, (getdate(doc.due_date) - getdate(doc.posting_date)).days)),
+			description=doc.enk_delivery_description or row.description,
+			quantity=str(flt(row.qty)),
+			unit_price=str(flt(row.rate, 2)),
+			tax_treatment=treatment,
+			tax_reason=doc.enk_tax_reason if treatment == "Exempt" else None,
+			service_start_date=str(start),
+			service_end_date=str(end),
+			subscription_source_file=copy.name,
+			external_id=external_id,
+		)
+	)

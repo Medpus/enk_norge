@@ -231,3 +231,56 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.attach("ENK VAT Return", ready.name)
 		receipt = frappe.get_all("File", filters={"attached_to_doctype": "ENK VAT Return", "attached_to_name": ready.name}, pluck="name")[0]
 		self.assertEqual(vat.mark_vat_return_manually_filed(private_receipt_file=receipt, **args)["status"], "Manually filed")
+
+	def test_subscription_invoice_continues_to_next_period_once(self):
+		customer = self.customer()
+		agreement = frappe.get_doc(
+			dict(doctype="File", file_name="avtale.txt", content="Fiktiv abonnementsavtale", is_private=1)
+		).insert()
+		first = create_sale(
+			dict(
+				company=self.company,
+				customer=customer["customer"],
+				customer_address=customer["customer_address"],
+				posting_date="2026-09-01",
+				delivery_date="2026-09-01",
+				due_date="2026-09-15",
+				description="SaaS-abonnement",
+				unit_price="499",
+				service_start_date="2026-09-01",
+				service_end_date="2026-09-30",
+				subscription_source_file=agreement.name,
+			)
+		)
+		documents.submit_document(first["doctype"], first["name"])
+		self.assertEqual(documents._next_period("2026-01-01", "2026-12-31")[1].isoformat(), "2027-12-31")
+		draft = documents.create_next_period(first["name"])
+		item = frappe.get_doc("Sales Invoice", draft["name"]).items[0]
+		self.assertEqual((str(item.service_start_date), str(item.service_end_date)), ("2026-10-01", "2026-10-31"))
+		self.assertEqual(documents.create_next_period(first["name"])["name"], draft["name"])
+		documents.submit_document(draft["doctype"], draft["name"])
+
+	def test_activated_equipment_goes_into_tax_pool_once(self):
+		supplier = parties.create_supplier(dict(supplier_name="Fiktiv elektronikk " + uuid4().hex[:6]))
+		draft = create_purchase(
+			dict(
+				company=self.company,
+				supplier=supplier["supplier"],
+				posting_date="2026-09-17",
+				bill_date="2026-09-17",
+				bill_no="MAC-POOL",
+				description="Mac til konsulentarbeid",
+				category="equipment",
+				gross_amount="36000",
+				expected_life_months=48,
+			)
+		)
+		self.attach(draft["doctype"], draft["name"])
+		posted = documents.submit_document(draft["doctype"], draft["name"])
+		self.assertEqual(posted["tax_pool_remaining"], "36000.00")
+		pool = documents.add_to_tax_pool(draft["name"], "a")
+		self.assertEqual(pool["saldo_group"], "a")
+		self.assertEqual(float(pool["depreciation_deduction"]), 10800.0)
+		self.assertEqual(documents.get_document(draft["doctype"], draft["name"])["tax_pool_remaining"], "0.00")
+		with self.assertRaises(frappe.ValidationError):
+			documents.add_to_tax_pool(draft["name"], "a")
