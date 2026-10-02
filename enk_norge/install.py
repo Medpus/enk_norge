@@ -284,3 +284,26 @@ def after_migrate():
 		from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
 		make_property_setter(doctype, None, "track_changes", 1, "Check", for_doctype=True)
+	refresh_page_cache()
+
+
+def refresh_page_cache():
+	"""Få nettleseren til å hente ENK-siden på nytt når koden er endret.
+
+	Frappe lagrer sidens kode i nettleserens localStorage og bytter den bare ut når
+	`Page.modified` endres. Uten dette kjører brukeren gammel kode etter en deploy.
+	"""
+	from hashlib import sha256
+
+	from frappe.utils import now
+
+	if not frappe.db.exists("Page", "enk-norge"):
+		return
+	page_dir = frappe.get_app_path("enk_norge", "enk_norge", "page", "enk_norge")
+	digest = sha256()
+	for name in ("enk_norge.js", "enk_norge.json"):
+		digest.update(frappe.read_file(f"{page_dir}/{name}").encode())
+	digest = digest.hexdigest()
+	if frappe.db.get_global("enk_page_digest") != digest:
+		frappe.db.set_value("Page", "enk-norge", "modified", now(), update_modified=False)
+		frappe.db.set_global("enk_page_digest", digest)

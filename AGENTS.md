@@ -134,9 +134,11 @@ labelen «for konsistens».
 - En funksjon som kalles fra grensesnittet må være hvitelistet. Sjekk alle `method:`-kall mot
   `frappe.whitelisted` etter endringer; inntektsføring av abonnement manglet dette lenge uten at
   noen test merket det.
-- Ikke fyll ut en åpen `frappe.ui.Dialog` med `set_values` når den har datofelt. Datovelgeren og
-  feltet kan sette hverandre i en uendelig løkke som låser hele siden. Gi verdiene som `default`
-  når dialogen lages.
+- Frappes datovelger kan låse hele siden i en løkke mellom velgeren og feltet. Det skjedde i
+  produksjon, men lot seg ikke gjenskape lokalt etter første rettelse. Faktura- og kjøpsskjemaet
+  bruker derfor nettleserens `<input type="date">` via `with_defaults` og `use_native_dates`.
+- Når en ERPNext-fakturakladd endres, må `payment_schedule` tømmes. Ellers tar ERPNext
+  forfallsdatoen fra den gamle betalingsplanen og ignorerer den nye.
 - Fakturamalen kjører inne i Frappes utskrifts-CSS, som har Bootstrap. Klassenavn som `label`
   og `table` får da Bootstraps stil. Bruk egne navn som `lbl` og `val` i malen.
 - Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.

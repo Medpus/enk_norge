@@ -85,6 +85,8 @@ def _save_draft(doc, values, draft_name=None):
 			draft.set(field, value)
 	draft.set("items", [row.as_dict(no_default_fields=True) for row in doc.items])
 	draft.set("taxes", [row.as_dict(no_default_fields=True) for row in doc.taxes])
+	# ERPNext tar forfallsdatoen fra betalingsplanen. Tøm den så planen lages fra ny dato.
+	draft.set("payment_schedule", [])
 	draft.save()
 	return draft
 

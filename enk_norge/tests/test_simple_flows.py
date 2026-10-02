@@ -334,13 +334,14 @@ class SimpleFlowsTest(unittest.TestCase):
 		draft = create_sale(args)
 		edit = documents.get_document(draft["doctype"], draft["name"])["edit"]
 		self.assertEqual(edit["items"][0]["description"], "Første utkast")
-		edited = create_sale(args | dict(draft=draft["name"], items=[
+		edited = create_sale(args | dict(draft=draft["name"], due_date="2026-10-15", items=[
 			dict(description="Palli grunnmodul", quantity="1", unit_price="6000"),
 			dict(description="Palli strekkode", quantity="2", unit_price="2000"),
 		]))
 		self.assertEqual(edited["name"], draft["name"])
 		invoice = frappe.get_doc("Sales Invoice", draft["name"])
 		self.assertEqual((len(invoice.items), invoice.grand_total), (2, 10000))
+		self.assertEqual(str(invoice.due_date), "2026-10-15")
 		documents.submit_document(draft["doctype"], draft["name"])
 		with self.assertRaises(frappe.ValidationError):
 			create_sale(args | dict(draft=draft["name"]))

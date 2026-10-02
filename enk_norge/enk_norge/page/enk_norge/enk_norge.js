@@ -1154,6 +1154,7 @@ class EnkNorgePage {
 			},
 		});
 		dialog.show();
+		this.use_native_dates(dialog);
 		const lines = new EnkInvoiceLines(dialog.get_field("lines").$wrapper, () => this.dashboard_data?.vat_registered);
 		if (edit) {
 			lines.fill(edit.items);
@@ -1163,12 +1164,27 @@ class EnkNorgePage {
 	}
 
 	with_defaults(edit, fields) {
-		// Verdier for en kladd gis som startverdier. Å sette datofelt etter at skjemaet er åpnet
-		// kan låse Frappes datovelger i en uendelig løkke.
-		if (!edit) return fields;
-		return fields.map((field) => (field.fieldname && edit[field.fieldname] !== null && edit[field.fieldname] !== undefined
-			? { ...field, default: edit[field.fieldname] }
-			: field));
+		// Frappes datovelger kan låse hele siden i en løkke mellom velgeren og feltet. Disse
+		// skjemaene bruker derfor nettleserens egen datovelger, og en kladds verdier gis som
+		// startverdier i stedet for å settes etter at skjemaet er åpnet.
+		return fields.map((field) => {
+			const value = edit?.[field.fieldname];
+			const next = field.fieldname && value !== null && value !== undefined ? { ...field, default: value } : { ...field };
+			if (next.fieldtype === "Date") {
+				next.fieldtype = "Data";
+				next.enk_native_date = 1;
+			}
+			return next;
+		});
+	}
+
+	use_native_dates(dialog) {
+		for (const field of dialog.fields_list) {
+			if (!field.df.enk_native_date || !field.$input) continue;
+			const value = field.get_value();
+			field.$input.attr("type", "date");
+			field.$input.val(value || "");
+		}
 	}
 
 	customer_fields(get_dialog) {
@@ -1547,6 +1563,7 @@ class EnkNorgePage {
 			},
 		});
 		dialog.show();
+		this.use_native_dates(dialog);
 		if (edit) this.fill_supplier_country(dialog);
 	}
 

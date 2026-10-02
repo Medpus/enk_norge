@@ -8,7 +8,7 @@
 {% set show_delivery = doc.enk_delivery_description and doc.enk_delivery_description.strip() != lines_text.strip() %}
 <style>
   /* Plass nederst på hver side til betalingsinformasjon og foretaksopplysninger i bunnteksten. */
-  .print-format { margin-bottom: 62mm; }
+  .print-format { margin-bottom: 74mm; }
   .enk-invoice { font-size: 10pt; line-height: 1.4; color: #1f2328; }
   .enk-invoice table { width: 100%; border-collapse: collapse; }
   /* Frappes utskriftsstil legger luft i alle tabellceller. Malen styrer avstanden selv. */
@@ -38,13 +38,13 @@
   .enk-invoice .totals td.val { text-align: right; white-space: nowrap; width: 140px; }
   .enk-invoice .totals tr.grand td { padding-top: 8px !important; border-top: 1.5px solid #1f2328; font-size: 12pt; font-weight: 700; }
   .enk-invoice .note { margin-top: 18px; }
-  .enk-invoice .pay { padding: 12px 16px; border: 1px solid #d1d9e0; background: #f6f8fa; }
-  .enk-invoice .pay h2 { margin: 0 0 8px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .enk-invoice .pay { padding: 16px 20px 14px; border: 1px solid #d1d9e0; background: #f6f8fa; }
+  .enk-invoice .pay h2 { margin: 0 0 14px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
   .enk-invoice .pay td { padding-right: 16px !important; width: 25%; }
-  .enk-invoice .pay .lbl { color: #59636e; font-size: 8.5pt; }
+  .enk-invoice .pay .lbl { color: #59636e; font-size: 8.5pt; margin-bottom: 3px; }
   .enk-invoice .pay .val { font-weight: 700; font-size: 11pt; white-space: nowrap; }
-  .enk-invoice .terms { margin-top: 8px; font-size: 8.5pt; }
-  .enk-invoice .company { margin-top: 14px; padding-top: 8px; border-top: 1px solid #d1d9e0; font-size: 8.5pt; }
+  .enk-invoice .terms { margin-top: 14px; font-size: 8.5pt; line-height: 1.5; }
+  .enk-invoice .company { margin-top: 18px; margin-bottom: 10mm; font-size: 8.5pt; line-height: 1.5; }
   .enk-invoice .company td { padding-right: 16px !important; }
 </style>
 <div class="enk-invoice">
