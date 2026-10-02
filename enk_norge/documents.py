@@ -262,6 +262,11 @@ def _summary(doc):
 	)
 	if doc.doctype in ("Sales Invoice", "Purchase Invoice") and doc.docstatus == 1:
 		result["payments"] = _payments(doc)
+	if doc.doctype == "Sales Invoice" and doc.docstatus == 1:
+		from enk_norge.sending import sendings
+
+		result["sendings"] = sendings(doc)
+		result["customer_email"] = frappe.db.get_value("Customer", doc.customer, "email_id")
 	if doc.doctype == "Purchase Invoice":
 		result["payment_method"] = doc.get("enk_payment_method") or ""
 	if doc.doctype == "Purchase Invoice" and doc.docstatus == 1:

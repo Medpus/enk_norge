@@ -75,7 +75,11 @@ Fakturaene nummereres fortløpende fra 1001. Har sitet flere foretak, får hvert
 prefiks. Seksjonen «Utenlandsk kunde, unntak eller abonnement» trenger du bare
 for kunder i utlandet, unntatt omsetning eller abonnement.
 
-Kladden er ikke sendt til kunden. Etter bokføring laster du ned PDF-en og sender den selv.
+Kladden er ikke sendt til kunden. Etter bokføring trykker du «Send til kunde». E-posten er
+fylt ut med kundens adresse, emne og en kort melding, og fakturaen legges ved som PDF. PDF-en
+lagres på fakturaen, og fakturaen viser hvem den er sendt til og når. Første gang ber appen deg
+sette opp e-posten fakturaene skal sendes fra. Bruk et app-passord for Gmail og Microsoft 365.
+Du kan også laste ned PDF-en og sende den selv.
 Når pengene kommer inn, trykker du «Registrer innbetaling» og oppgir datoen og teksten fra
 kontoutskriften.
 

@@ -143,6 +143,8 @@ labelen «for konsistens».
   Setter du feltet med `set_single_value`, må du også kjøre `frappe.db.set_default`.
 - Når en ERPNext-fakturakladd endres, må `payment_schedule` tømmes. Ellers tar ERPNext
   forfallsdatoen fra den gamle betalingsplanen og ignorerer den nye.
+- Den samlede testløperen kjører ikke i Frappes testmodus. Frappe tester da SMTP-tilkoblingen
+  når en e-postkonto lagres. Tester av utsending må slå på `frappe.in_test` og `mute_emails`.
 - Fakturamalen kjører inne i Frappes utskrifts-CSS, som har Bootstrap. Klassenavn som `label`
   og `table` får da Bootstraps stil. Bruk egne navn som `lbl` og `val` i malen.
 - Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.
