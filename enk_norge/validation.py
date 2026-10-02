@@ -81,8 +81,10 @@ def validate_transaction(doc, method=None):
 			frappe.throw("Kunden må ha en fakturaadresse.")
 		if not doc.get("enk_tax_treatment"):
 			frappe.throw("Velg norsk avgiftsbehandling før fakturaen bokføres.")
-		if not doc.is_return and not doc.name.startswith(settings.invoice_prefix + "-"):
-			frappe.throw("Bruk fakturaserien fra ENK-oppsettet.")
+		from enk_norge.setup import is_invoice_number
+
+		if not doc.is_return and not is_invoice_number(settings, doc.name):
+			frappe.throw("Kladden har nummer fra en annen fakturaserie. Slett kladden og lag fakturaen på nytt.")
 		registered = settings.vat_registered and posting >= getdate(settings.vat_registration_date)
 		issuer_registered = registered
 		if doc.is_return and doc.return_against:

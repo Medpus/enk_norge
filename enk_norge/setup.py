@@ -167,6 +167,19 @@ def repair_completed_setup_home_page():
 	return True
 
 
+def invoice_naming_series(settings):
+	"""Fortløpende fakturaserie. Uten prefiks blir nummeret bare 1, 2, 3 osv."""
+	if not settings.invoice_prefix:
+		return ".#"
+	return settings.invoice_prefix + "-.YYYY.-.#####"
+
+
+def is_invoice_number(settings, name):
+	if not settings.invoice_prefix:
+		return str(name).isdigit()
+	return str(name).startswith(settings.invoice_prefix + "-")
+
+
 @frappe.whitelist()
 def list_companies():
 	frappe.only_for(["Accounts User", "Accounts Manager", "System Manager"])
@@ -278,7 +291,8 @@ def create_company(data):
 		"history_confirmed",
 	):
 		settings.set(key, data.get(key))
-	settings.invoice_prefix = "ENK-" + abbr
+	# Ett foretak på sitet får fakturanummer 1, 2, 3. Flere foretak trenger prefiks for egne serier.
+	settings.invoice_prefix = "ENK-" + abbr if frappe.db.count("ENK Settings") else ""
 	for code, _label, root, _account_type, purpose, standard in ACCOUNTS:
 		account = frappe.db.get_value("Account", {"company": company.name, "account_number": code}, "name")
 		settings.set("bank_ledger_account" if purpose == "bank" else purpose + "_account", account)

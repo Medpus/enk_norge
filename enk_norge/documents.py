@@ -185,7 +185,66 @@ def _summary(doc):
 			description=doc.user_remark,
 		)
 	result["status"] = _status(doc.doctype, frappe._dict(result))
+	if doc.docstatus == 0 and not doc.get("enk_external_id") and result["can_submit"]:
+		result["edit"] = _edit_values(doc)
 	return result
+
+
+def _edit_values(doc):
+	"""Verdiene skjemaet trenger for å redigere kladden. Bare salg og kjøp kan redigeres."""
+	common = dict(
+		currency=doc.get("currency") or "NOK",
+		conversion_rate=flt(doc.get("conversion_rate")) if (doc.get("currency") or "NOK") != "NOK" else None,
+		exchange_rate_source=doc.get("enk_exchange_rate_source"),
+		exchange_rate_date=str(doc.enk_exchange_rate_date) if doc.get("enk_exchange_rate_date") else None,
+	)
+	if doc.doctype == "Sales Invoice":
+		first = doc.items[0] if doc.items else frappe._dict()
+		source = doc.get("enk_subscription_source_file")
+		return common | dict(
+			customer=doc.customer,
+			customer_address=doc.customer_address,
+			delivery_date=str(doc.enk_delivery_date) if doc.enk_delivery_date else None,
+			due_date=str(doc.due_date) if doc.due_date else None,
+			tax_treatment="" if doc.enk_tax_treatment in ("Not registered", "Domestic 25") else doc.enk_tax_treatment,
+			tax_reason=doc.enk_tax_reason,
+			items=[
+				dict(description=row.description, quantity=str(flt(row.qty)), unit_price=str(flt(row.rate, 2)))
+				for row in doc.items
+			],
+			defer_revenue=1 if first.get("enable_deferred_revenue") else 0,
+			service_start_date=str(first.service_start_date) if first.get("service_start_date") else None,
+			service_end_date=str(first.service_end_date) if first.get("service_end_date") else None,
+			subscription_source_file=frappe.db.get_value("File", source, "file_url") if source else None,
+		)
+	if doc.doctype == "Purchase Invoice":
+		settings = get_settings(doc.company)
+		first = doc.items[0] if doc.items else frappe._dict()
+		category = next(
+			(
+				key
+				for key in ("software", "equipment", "expense", "fees", "asset")
+				if settings.get(key + "_account") == first.get("expense_account")
+			),
+			"expense",
+		)
+		treatment = doc.enk_tax_treatment or ""
+		return common | dict(
+			supplier=doc.supplier,
+			bill_no=doc.bill_no,
+			bill_date=str(doc.bill_date) if doc.bill_date else None,
+			description=first.get("description"),
+			gross_amount=flt(doc.grand_total, 2),
+			category="equipment" if category == "asset" else category,
+			expected_life_months=doc.get("enk_expected_life_months") or None,
+			vat_rate=treatment.split()[1] if treatment.startswith("Domestic") else "0",
+			tax_reason=doc.get("enk_tax_reason"),
+			business_fraction_percent=flt(doc.get("enk_business_fraction") or 1) * 100,
+			deductible_fraction_percent=flt(doc.get("enk_deductible_fraction") or 1) * 100,
+			tax_deductible_fraction_percent=flt(doc.get("enk_tax_deductible_fraction") or 1) * 100,
+			tax_adjustment_reason=doc.get("enk_tax_adjustment_reason"),
+		)
+	return None
 
 
 def _activation(doc):
@@ -301,8 +360,13 @@ def create_next_period(name):
 	doc = _load("Sales Invoice", name)
 	if doc.docstatus != 1 or doc.is_return:
 		frappe.throw("Bare bokførte fakturaer kan videreføres.")
-	if len(doc.items) != 1 or not doc.items[0].enable_deferred_revenue or not doc.enk_subscription_source_file:
-		frappe.throw("Bare fakturaer for ett abonnement med periode og avtale kan videreføres.")
+	periods = {(str(row.service_start_date), str(row.service_end_date)) for row in doc.items}
+	if (
+		not all(row.enable_deferred_revenue for row in doc.items)
+		or len(periods) != 1
+		or not doc.enk_subscription_source_file
+	):
+		frappe.throw("Bare abonnementsfakturaer der alle linjene har samme periode og avtale kan videreføres.")
 	if (doc.currency or "NOK") != "NOK":
 		frappe.throw("Abonnement i utenlandsk valuta må faktureres med ny faktura, fordi kursen må dokumenteres.")
 	external_id = f"neste-periode:{doc.name}"
@@ -329,9 +393,11 @@ def create_next_period(name):
 			posting_date=str(posting),
 			delivery_date=str(start),
 			due_date=str(add_days(posting, (getdate(doc.due_date) - getdate(doc.posting_date)).days)),
-			description=doc.enk_delivery_description or row.description,
-			quantity=str(flt(row.qty)),
-			unit_price=str(flt(row.rate, 2)),
+			description=doc.enk_delivery_description,
+			items=[
+				dict(description=line.description, quantity=str(flt(line.qty)), unit_price=str(flt(line.rate, 2)))
+				for line in doc.items
+			],
 			tax_treatment=treatment,
 			tax_reason=doc.enk_tax_reason if treatment == "Exempt" else None,
 			service_start_date=str(start),

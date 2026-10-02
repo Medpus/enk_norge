@@ -8,7 +8,7 @@ import frappe
 from frappe.utils import cint, getdate, today
 
 from enk_norge.currency import get_currency_party_account, nok_amount, parse_currency_input
-from enk_norge.setup import get_settings
+from enk_norge.setup import get_settings, invoice_naming_series
 
 
 def _data(data):
@@ -64,6 +64,56 @@ def _draft_existing(doctype, company, external_id, fingerprint):
 		return dict(doctype=doctype, name=name, reused=True)
 
 
+def _check_editable_draft(doctype, name, company):
+	draft = frappe.get_doc(doctype, name, for_update=True)
+	draft.check_permission("write")
+	if draft.docstatus != 0 or draft.company != company:
+		frappe.throw("Bare kladder i samme foretak kan redigeres.")
+	if draft.get("enk_external_id"):
+		frappe.throw("Kladden kommer fra timer, abonnement eller import. Slett den og lag den på nytt fra kilden.")
+	return draft
+
+
+def _save_draft(doc, values, draft_name=None):
+	"""Lagre ny kladd, eller skriv opplysningene inn i en eksisterende kladd så nummeret beholdes."""
+	if not draft_name:
+		doc.insert()
+		return doc
+	draft = _check_editable_draft(doc.doctype, draft_name, doc.company)
+	for field, value in values.items():
+		if field not in ("doctype", "naming_series", "items"):
+			draft.set(field, value)
+	draft.set("items", [row.as_dict(no_default_fields=True) for row in doc.items])
+	draft.set("taxes", [row.as_dict(no_default_fields=True) for row in doc.taxes])
+	draft.save()
+	return draft
+
+
+def _sale_lines(data):
+	"""Fakturalinjer fra `items`, eller én linje fra beskrivelse, antall og pris."""
+	rows = data.get("items")
+	if isinstance(rows, str):
+		rows = frappe.parse_json(rows)
+	if not rows:
+		rows = [dict(description=data.description, quantity=data.get("quantity", 1), unit_price=data.unit_price)]
+	if not isinstance(rows, list) or len(rows) > 100:
+		frappe.throw("Ugyldige fakturalinjer.")
+	lines = []
+	for row in rows:
+		row = frappe._dict(row)
+		description = (row.description or "").strip()
+		if not description:
+			frappe.throw("Hver fakturalinje må ha en beskrivelse.")
+		lines.append(
+			dict(
+				description=description,
+				qty=_amount(row.get("quantity", row.get("qty", 1)), "Antall"),
+				rate=_amount(row.get("unit_price", row.get("rate")), "Pris"),
+			)
+		)
+	return lines
+
+
 @frappe.whitelist(methods=["POST"])
 def create_sale(data):
 	data = _data(data)
@@ -72,6 +122,8 @@ def create_sale(data):
 	frappe.has_permission("Sales Invoice", "create", throw=True)
 	if existing := _draft_existing("Sales Invoice", data.company, data.external_id, _fingerprint(data)):
 		return existing
+	if data.get("draft") and data.external_id:
+		frappe.throw("En kladd fra en ekstern kilde kan ikke redigeres.")
 	posting = getdate(data.posting_date or today())
 	customer = frappe.get_doc("Customer", data.customer)
 	customer.check_permission("read")
@@ -105,20 +157,19 @@ def create_sale(data):
 		"Exempt",
 	):
 		frappe.throw("Avgiftsbehandlingen støttes ikke for salg.")
-	if not data.description or not data.delivery_date:
-		frappe.throw("Beskriv produktet og oppgi leveringsdato.")
+	lines = _sale_lines(data)
+	if not data.delivery_date:
+		frappe.throw("Oppgi leveringsdato.")
 	if treatment == "Exempt" and not (data.tax_reason or "").strip():
 		frappe.throw("Oppgi regel og begrunnelse for at leveransen er unntatt fra MVA.")
-	qty = _amount(data.get("quantity", 1), "Antall")
-	price = _amount(data.unit_price, "Enhetspris")
+	delivery_description = (data.description or "").strip() or "\n".join(line["description"] for line in lines)
 	from enk_norge.deferrals import DeferralError, subscription_sale_values
 
 	try:
 		deferred_values = subscription_sale_values(data, settings, posting)
 	except DeferralError as error:
 		frappe.throw(str(error))
-	doc = frappe.get_doc(
-		dict(
+	values = dict(
 			doctype="Sales Invoice",
 			company=data.company,
 			customer=customer.name,
@@ -135,20 +186,20 @@ def create_sale(data):
 				if currency.currency != "NOK" else settings.receivable_account),
 			enk_exchange_rate_source=currency.source,
 			enk_exchange_rate_date=currency.rate_date,
-			naming_series=settings.invoice_prefix + "-.YYYY.-.#####",
+			naming_series=invoice_naming_series(settings),
 			enk_tax_treatment=treatment,
 			enk_tax_reason=data.tax_reason,
 			enk_external_id=data.external_id,
 			enk_request_fingerprint=_fingerprint(data) if data.external_id else None,
 			enk_delivery_date=data.delivery_date,
-			enk_delivery_description=data.description,
+			enk_delivery_description=delivery_description,
 			items=[
 				dict(
-					item_name=data.description[:140],
-					description=data.description,
-					qty=float(qty),
+					item_name=line["description"][:140],
+					description=line["description"],
+					qty=float(line["qty"]),
 					uom="Nos",
-					rate=float(price),
+					rate=float(line["rate"]),
 					income_account=(
 						settings.export_income_account
 						if treatment == "Export services"
@@ -159,9 +210,10 @@ def create_sale(data):
 					cost_center=frappe.get_cached_value("Company", data.company, "cost_center"),
 				)
 				| (deferred_values or {})
+				for line in lines
 			],
 		)
-	)
+	doc = frappe.get_doc(values)
 	if treatment.startswith("Domestic"):
 		doc.append(
 			"taxes",
@@ -172,7 +224,7 @@ def create_sale(data):
 				rate=int(treatment.split()[1]),
 			),
 		)
-	doc.insert()
+	doc = _save_draft(doc, values, data.get("draft"))
 	if deferred_values:
 		from enk_norge.deferrals import attach_subscription_source
 
@@ -188,6 +240,8 @@ def create_purchase(data):
 	frappe.has_permission("Purchase Invoice", "create", throw=True)
 	if existing := _draft_existing("Purchase Invoice", data.company, data.external_id, _fingerprint(data)):
 		return existing
+	if data.get("draft") and data.external_id:
+		frappe.throw("En kladd fra en ekstern kilde kan ikke redigeres.")
 	supplier = frappe.get_doc("Supplier", data.supplier)
 	supplier.check_permission("read")
 	if not data.description or not data.bill_no or not data.bill_date:
@@ -195,7 +249,13 @@ def create_purchase(data):
 	frappe.db.sql("select name from `tabCompany` where name=%s for update", data.company)
 	if frappe.db.exists(
 		"Purchase Invoice",
-		{"company": data.company, "supplier": data.supplier, "bill_no": data.bill_no, "docstatus": ["!=", 2]},
+		{
+			"company": data.company,
+			"supplier": data.supplier,
+			"bill_no": data.bill_no,
+			"docstatus": ["!=", 2],
+			"name": ["!=", data.get("draft") or ""],
+		},
 	):
 		frappe.throw("Bilagsnummeret er allerede registrert for denne leverandøren.")
 	category = data.category or "expense"
@@ -267,8 +327,7 @@ def create_purchase(data):
 		# Regelmotoren avgjør om utstyret skal aktiveres, så brukeren trenger bare ett utstyrsvalg.
 		if assessment.treatment == AssetTreatment.ACTIVATE_AND_DEPRECIATE:
 			category = "asset"
-	doc = frappe.get_doc(
-		dict(
+	values = dict(
 			doctype="Purchase Invoice",
 			company=data.company,
 			supplier=data.supplier,
@@ -311,7 +370,7 @@ def create_purchase(data):
 				)
 			],
 		)
-	)
+	doc = frappe.get_doc(values)
 	if private_amount:
 		doc.append(
 			"items",
@@ -337,7 +396,7 @@ def create_purchase(data):
 				add_deduct_tax="Add",
 			),
 		)
-	doc.insert()
+	doc = _save_draft(doc, values, data.get("draft"))
 	return dict(doctype=doc.doctype, name=doc.name, reused=False)
 
 

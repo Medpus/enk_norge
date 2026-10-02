@@ -284,3 +284,80 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertEqual(documents.get_document(draft["doctype"], draft["name"])["tax_pool_remaining"], "0.00")
 		with self.assertRaises(frappe.ValidationError):
 			documents.add_to_tax_pool(draft["name"], "a")
+
+	def test_invoice_with_several_lines_and_plain_numbers(self):
+		from enk_norge.printing import enk_format_number
+
+		# Et foretak alene på sitet får fakturanummer 1, 2, 3. Testsitet har flere, så prefiksen fjernes her.
+		frappe.db.set_value("ENK Settings", self.company, "invoice_prefix", "")
+		customer = self.customer()
+		draft = create_sale(
+			dict(
+				company=self.company,
+				customer=customer["customer"],
+				customer_address=customer["customer_address"],
+				posting_date="2026-09-17",
+				delivery_date="2026-09-17",
+				due_date="2026-10-01",
+				items=[
+					dict(description="Palli, modul for pakkseddel", quantity="1", unit_price="4000"),
+					dict(description="Palli, modul for strekkode", quantity="2", unit_price="1500"),
+					dict(description="Palli, modul for fraktbrev", quantity="1", unit_price="3000"),
+				],
+			)
+		)
+		self.assertTrue(draft["name"].isdigit(), draft["name"])
+		invoice = frappe.get_doc(draft["doctype"], draft["name"])
+		self.assertEqual([row.description for row in invoice.items][1], "Palli, modul for strekkode")
+		self.assertEqual(invoice.grand_total, 10000)
+		documents.submit_document(draft["doctype"], draft["name"])
+		html = frappe.get_print("Sales Invoice", draft["name"], print_format="ENK Faktura")
+		self.assertIn("Palli, modul for fraktbrev", html)
+		self.assertIn("Betalingsinformasjon", html)
+		self.assertNotIn("Merverdiavgiftsregisteret", html)
+		self.assertEqual(enk_format_number("86011117947", "account"), "8601.11.17947")
+		self.assertEqual(enk_format_number("974761076", "org"), "974 761 076")
+		with self.assertRaises(frappe.ValidationError):
+			create_sale(dict(company=self.company, customer=customer["customer"], customer_address=customer["customer_address"], delivery_date="2026-09-17", due_date="2026-10-01", items=[dict(description="", quantity="1", unit_price="1")]))
+
+	def test_drafts_can_be_edited_and_keep_their_number(self):
+		customer = self.customer()
+		args = dict(
+			company=self.company,
+			customer=customer["customer"],
+			customer_address=customer["customer_address"],
+			posting_date="2026-09-17",
+			delivery_date="2026-09-17",
+			due_date="2026-10-01",
+			items=[dict(description="Første utkast", quantity="1", unit_price="1000")],
+		)
+		draft = create_sale(args)
+		edit = documents.get_document(draft["doctype"], draft["name"])["edit"]
+		self.assertEqual(edit["items"][0]["description"], "Første utkast")
+		edited = create_sale(args | dict(draft=draft["name"], items=[
+			dict(description="Palli grunnmodul", quantity="1", unit_price="6000"),
+			dict(description="Palli strekkode", quantity="2", unit_price="2000"),
+		]))
+		self.assertEqual(edited["name"], draft["name"])
+		invoice = frappe.get_doc("Sales Invoice", draft["name"])
+		self.assertEqual((len(invoice.items), invoice.grand_total), (2, 10000))
+		documents.submit_document(draft["doctype"], draft["name"])
+		with self.assertRaises(frappe.ValidationError):
+			create_sale(args | dict(draft=draft["name"]))
+
+		supplier = parties.create_supplier(dict(supplier_name="Fiktiv leverandør " + uuid4().hex[:6]))
+		purchase_args = dict(
+			company=self.company,
+			supplier=supplier["supplier"],
+			posting_date="2026-09-17",
+			bill_date="2026-09-17",
+			bill_no="K-1",
+			description="Kontorrekvisita",
+			category="expense",
+			gross_amount="300",
+		)
+		purchase = create_purchase(purchase_args)
+		values = documents.get_document(purchase["doctype"], purchase["name"])["edit"]
+		self.assertEqual((values["gross_amount"], values["category"]), (300.0, "expense"))
+		create_purchase(purchase_args | dict(draft=purchase["name"], gross_amount="450"))
+		self.assertEqual(frappe.get_doc("Purchase Invoice", purchase["name"]).grand_total, 450)

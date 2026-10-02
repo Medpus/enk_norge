@@ -127,7 +127,8 @@
    "fieldname": "invoice_prefix",
    "label": "Fakturaprefiks",
    "fieldtype": "Data",
-   "reqd": 1
+   "reqd": 0,
+   "description": "Tom gir fakturanummer 1, 2, 3. Prefiks trengs bare når flere foretak deler samme site."
   },
   {
    "fieldname": "frozen_through",

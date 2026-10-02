@@ -1,32 +1,130 @@
 {% set issuer = enk_invoice_issuer(doc) %}
+{% set buyer = enk_invoice_buyer(doc) %}
+{% set registered = issuer.vat_registered %}
+{% set org = enk_format_number(issuer.organization_number, 'org') %}
+{% set account = enk_format_number(issuer.bank_account, 'account') %}
+{% set lines_text = doc.items | map(attribute='description') | join('\n') %}
+{% set show_delivery = doc.enk_delivery_description and doc.enk_delivery_description.strip() != lines_text.strip() %}
+<style>
+  .enk-invoice { font-size: 10pt; line-height: 1.4; color: #1f2328; }
+  .enk-invoice table { width: 100%; border-collapse: collapse; }
+  .enk-invoice td, .enk-invoice th { padding: 0; vertical-align: top; border: 0; }
+  .enk-invoice .seller-name { font-size: 15pt; font-weight: 700; }
+  .enk-invoice .doc-title { font-size: 22pt; font-weight: 700; letter-spacing: 1px; text-align: right; }
+  .enk-invoice .draft { margin-top: 8px; padding: 6px 10px; border: 1px solid #c4320a; color: #c4320a; font-weight: 700; text-align: center; }
+  .enk-invoice .muted { color: #59636e; }
+  .enk-invoice .parties { margin-top: 36px; }
+  .enk-invoice .buyer-name { font-weight: 700; font-size: 11pt; }
+  .enk-invoice .meta td { padding: 2px 0; }
+  .enk-invoice .meta td.lbl { color: #59636e; padding-right: 16px; white-space: nowrap; }
+  .enk-invoice .meta td.val { text-align: right; white-space: nowrap; }
+  .enk-invoice .meta tr.due td { font-weight: 700; color: #1f2328; }
+  .enk-invoice .delivery { margin-top: 28px; }
+  .enk-invoice .lines { margin-top: 28px; }
+  .enk-invoice .delivery + .lines { margin-top: 12px; }
+  .enk-invoice .lines th { padding: 6px 8px 6px 0; border-bottom: 1.5px solid #1f2328; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+  .enk-invoice .lines td { padding: 8px 8px 8px 0; border-bottom: 1px solid #d1d9e0; }
+  .enk-invoice .lines .num { text-align: right; white-space: nowrap; padding-right: 0; padding-left: 12px; }
+  .enk-invoice .desc { white-space: pre-line; }
+  .enk-invoice .totals { margin-top: 12px; }
+  .enk-invoice .totals td { padding: 3px 0; }
+  .enk-invoice .totals td.val { text-align: right; white-space: nowrap; width: 140px; }
+  .enk-invoice .totals tr.grand td { padding-top: 8px; border-top: 1.5px solid #1f2328; font-size: 12pt; font-weight: 700; }
+  .enk-invoice .note { margin-top: 18px; }
+  .enk-invoice .pay { margin-top: 40px; padding: 14px 16px; border: 1px solid #d1d9e0; background: #f6f8fa; }
+  .enk-invoice .pay h2 { margin: 0 0 10px; font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .enk-invoice .pay td { padding: 2px 24px 2px 0; }
+  .enk-invoice .pay td.lbl { color: #59636e; white-space: nowrap; }
+  .enk-invoice .pay .strong { font-weight: 700; font-size: 11pt; }
+  .enk-invoice .terms { margin-top: 10px; font-size: 8.5pt; }
+  .enk-invoice .footer { margin-top: 28px; padding-top: 8px; border-top: 1px solid #d1d9e0; font-size: 8.5pt; }
+</style>
 <div class="enk-invoice">
-  <h1>{{ 'Kreditnota' if doc.is_return else 'Faktura' }}</h1>
-  {% if doc.docstatus != 1 %}<p><strong>{{ 'UTKAST. Skal ikke betales.' if doc.docstatus == 0 else 'ANNULLERT' }}</strong></p>{% endif %}
-  <table class="table table-borderless">
-    <tr><td><strong>{{ (issuer.company_name or doc.company) | e }}</strong><br>
-      {{ issuer.address_line | e }}<br>{{ issuer.postal_code | e }} {{ issuer.city | e }}<br>
-      Org.nr. {{ issuer.organization_number | e }}{% if issuer.vat_registered %} MVA{% endif %}
-    </td><td><strong>{{ doc.customer_name | e }}</strong><br>
-      {{ doc.address_display or '' }}{% if doc.tax_id %}<br>Org.nr. {{ doc.tax_id | e }}{% endif %}
+  <table>
+    <tr>
+      <td><div class="seller-name">{{ (issuer.company_name or doc.company) | e }}</div></td>
+      <td><div class="doc-title">{{ 'KREDITNOTA' if doc.is_return else 'FAKTURA' }}</div></td>
+    </tr>
+  </table>
+  {% if doc.docstatus != 1 %}<div class="draft">{{ 'UTKAST. Skal ikke betales.' if doc.docstatus == 0 else 'ANNULLERT' }}</div>{% endif %}
+
+  <table class="parties">
+    <tr>
+      <td style="width: 55%;">
+        <div class="buyer-name">{{ buyer.name | e }}</div>
+        {% for line in buyer.lines %}<div>{{ line | e }}</div>{% endfor %}
+        {% if buyer.tax_id %}<div>Org.nr. {{ enk_format_number(buyer.tax_id, 'org') | e }}</div>{% endif %}
+      </td>
+      <td>
+        <table class="meta">
+          <tr><td class="lbl">{{ 'Kreditnotanr.' if doc.is_return else 'Fakturanr.' }}</td><td class="val"><strong>{{ doc.name | e }}</strong></td></tr>
+          <tr><td class="lbl">{{ 'Dato' if doc.is_return else 'Fakturadato' }}</td><td class="val">{{ frappe.utils.formatdate(doc.posting_date, 'dd.MM.yyyy') }}</td></tr>
+          {% if not doc.is_return %}<tr class="due"><td class="lbl">Forfallsdato</td><td class="val">{{ frappe.utils.formatdate(doc.due_date, 'dd.MM.yyyy') }}</td></tr>{% endif %}
+          <tr><td class="lbl">Leveringsdato</td><td class="val">{{ frappe.utils.formatdate(doc.enk_delivery_date, 'dd.MM.yyyy') }}</td></tr>
+          {% if doc.return_against %}<tr><td class="lbl">Gjelder faktura</td><td class="val">{{ doc.return_against | e }}</td></tr>{% endif %}
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  {% if show_delivery %}<div class="delivery desc">{{ doc.enk_delivery_description | e }}</div>{% endif %}
+
+  <table class="lines">
+    <thead>
+      <tr>
+        <th>Beskrivelse</th>
+        <th class="num">Antall</th>
+        <th class="num">Pris</th>
+        {% if doc.taxes %}<th class="num">MVA</th>{% endif %}
+        <th class="num">Beløp</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in doc.items %}
+      <tr>
+        <td class="desc">{{ (item.description or item.item_name) | striptags | e }}{% if item.service_start_date and item.service_end_date %}
+<span class="muted">Periode {{ frappe.utils.formatdate(item.service_start_date, 'dd.MM.yyyy') }} til {{ frappe.utils.formatdate(item.service_end_date, 'dd.MM.yyyy') }}</span>{% endif %}</td>
+        <td class="num">{{ frappe.utils.fmt_money(item.qty | abs, precision=(0 if (item.qty | abs) == ((item.qty | abs) | int) else 2)) }}</td>
+        <td class="num">{{ frappe.utils.fmt_money(item.rate, precision=2) }}</td>
+        {% if doc.taxes %}<td class="num">{{ doc.taxes[0].rate | int }} %</td>{% endif %}
+        <td class="num">{{ frappe.utils.fmt_money(item.amount, precision=2) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td style="width: 55%;"></td><td>
+      <table>
+        {% if doc.taxes %}
+        <tr><td>Sum eks. MVA</td><td class="val">{{ doc.get_formatted('net_total') }}</td></tr>
+        {% for tax in doc.taxes %}<tr><td>MVA {{ tax.rate | int }} %</td><td class="val">{{ tax.get_formatted('tax_amount') }}</td></tr>{% endfor %}
+        {% endif %}
+        <tr class="grand"><td>{{ 'Til gode' if doc.is_return else 'Å betale' }}</td><td class="val">{{ doc.get_formatted('grand_total') }}</td></tr>
+      </table>
     </td></tr>
   </table>
-  <dl>
-    <dt>Fakturanummer</dt><dd>{{ doc.name | e }}</dd>
-    <dt>Fakturadato</dt><dd>{{ frappe.utils.formatdate(doc.posting_date, 'dd.MM.yyyy') }}</dd>
-    <dt>Betalingsfrist</dt><dd>{{ frappe.utils.formatdate(doc.due_date, 'dd.MM.yyyy') }}</dd>
-    <dt>Leveringsdato</dt><dd>{{ frappe.utils.formatdate(doc.enk_delivery_date, 'dd.MM.yyyy') }}</dd>
-    {% if doc.return_against %}<dt>Gjelder faktura</dt><dd>{{ doc.return_against | e }}</dd>{% endif %}
-  </dl>
-  <p>{{ doc.enk_delivery_description | e }}</p>
-  <table class="table table-bordered">
-    <thead><tr><th>Beskrivelse</th><th class="text-right">Antall</th><th class="text-right">Pris eks. MVA</th><th class="text-right">Beløp eks. MVA</th></tr></thead>
-    <tbody>{% for item in doc.items %}<tr><td>{{ item.item_name | e }}</td><td class="text-right">{{ item.get_formatted('qty') }}</td><td class="text-right">{{ item.get_formatted('rate') }}</td><td class="text-right">{{ item.get_formatted('amount') }}</td></tr>{% endfor %}</tbody>
-  </table>
-  <p class="text-right">Sum eks. MVA: {{ doc.get_formatted('net_total') }}</p>
-  {% for tax in doc.taxes %}<p class="text-right">{{ tax.description | e }} ({{ tax.rate }} %): {{ tax.get_formatted('tax_amount') }}</p>{% endfor %}
-  <p class="text-right"><strong>{{ 'Til gode' if doc.is_return else 'Å betale' }}: {{ doc.get_formatted('grand_total') }}</strong></p>
-  {% if not issuer.vat_registered %}<p>Foretaket er ikke registrert i Merverdiavgiftsregisteret. Det er ikke beregnet MVA.</p>{% endif %}
-  {% if doc.enk_tax_treatment == 'Export services' %}<p>Fjernleverbar tjeneste til mottaker utenfor merverdiavgiftsområdet. Fritatt etter merverdiavgiftsloven § 6-22.</p>{% endif %}
-  {% if doc.enk_tax_treatment == 'Exempt' %}<p>Unntatt fra MVA: {{ doc.enk_tax_reason | e }}</p>{% endif %}
-  {% if not doc.is_return %}<p>Betal til konto <strong>{{ issuer.bank_account | e }}</strong>. Merk betalingen med {{ doc.name | e }}.</p>{% endif %}
+
+  {% if doc.enk_tax_treatment == 'Export services' %}<p class="note">Fjernleverbar tjeneste til mottaker utenfor merverdiavgiftsområdet. Fritatt etter merverdiavgiftsloven § 6-22.</p>{% endif %}
+  {% if doc.enk_tax_treatment == 'Exempt' %}<p class="note">Unntatt fra MVA: {{ doc.enk_tax_reason | e }}</p>{% endif %}
+
+  {% if not doc.is_return %}
+  <div class="pay">
+    <h2>Betalingsinformasjon</h2>
+    <table style="width: auto;">
+      <tr><td class="lbl">Kontonummer</td><td class="strong">{{ account | e }}</td></tr>
+      <tr><td class="lbl">Beløp</td><td class="strong">{{ doc.get_formatted('grand_total') }}</td></tr>
+      <tr><td class="lbl">Forfallsdato</td><td>{{ frappe.utils.formatdate(doc.due_date, 'dd.MM.yyyy') }}</td></tr>
+      <tr><td class="lbl">Merk betalingen med</td><td class="strong">Faktura {{ doc.name | e }}</td></tr>
+    </table>
+    <div class="terms muted">Ved betaling etter forfall kan det påløpe forsinkelsesrente etter forsinkelsesrenteloven.</div>
+  </div>
+  {% endif %}
+
+  <div class="footer muted">
+    <strong>{{ (issuer.company_name or doc.company) | e }}</strong>
+    · Org.nr. {{ org | e }}{% if registered %} MVA{% endif %}
+    · {{ issuer.address_line | e }}, {{ issuer.postal_code | e }} {{ issuer.city | e }}{% if issuer.phone %}
+    · Telefon {{ issuer.phone | e }}{% endif %}
+  </div>
 </div>

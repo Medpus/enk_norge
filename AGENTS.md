@@ -134,6 +134,8 @@ labelen «for konsistens».
 - En funksjon som kalles fra grensesnittet må være hvitelistet. Sjekk alle `method:`-kall mot
   `frappe.whitelisted` etter endringer; inntektsføring av abonnement manglet dette lenge uten at
   noen test merket det.
+- Fakturamalen kjører inne i Frappes utskrifts-CSS, som har Bootstrap. Klassenavn som `label`
+  og `table` får da Bootstraps stil. Bruk egne navn som `lbl` og `val` i malen.
 - Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.
   ENK-fakturaens nedlasting bruker site-innstillingen `enk_pdf_asset_origin` for interne
   statiske ressurser. Se deploy-veiledningen. Ikke sett offentlig `host_name` til en intern URL.

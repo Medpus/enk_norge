@@ -127,3 +127,28 @@ def enk_invoice_issuer(doc):
 	from enk_norge.setup import get_settings
 
 	return get_settings(doc.company).as_dict() | {"company_name": doc.company}
+
+
+def enk_invoice_buyer(doc):
+	"""Kjøperens navn og adresse som linjer. Norge skrives ikke ut for norske kunder."""
+	doc.check_permission("read")
+	address = frappe.db.get_value(
+		"Address",
+		doc.customer_address,
+		["address_line1", "address_line2", "pincode", "city", "country"],
+		as_dict=True,
+	) or frappe._dict()
+	lines = [address.address_line1, address.address_line2, " ".join(filter(None, [address.pincode, address.city]))]
+	if address.country and address.country != "Norway":
+		lines.append(address.country)
+	return frappe._dict(name=doc.customer_name, lines=[line for line in lines if line], tax_id=doc.tax_id)
+
+
+def enk_format_number(value, kind):
+	"""Norsk visning av kontonummer (1234.56.78901) og organisasjonsnummer (123 456 789)."""
+	digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+	if kind == "account" and len(digits) == 11:
+		return f"{digits[:4]}.{digits[4:6]}.{digits[6:]}"
+	if kind == "org" and len(digits) == 9:
+		return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
+	return value or ""

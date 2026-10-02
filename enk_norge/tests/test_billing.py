@@ -166,7 +166,9 @@ class BillingWorkflowTest(unittest.TestCase):
 		draft.price_list_currency = "NOK"
 		draft.plc_conversion_rate = 1
 		draft.debit_to = self.settings.receivable_account
-		draft.naming_series = self.settings.invoice_prefix + "-.YYYY.-.#####"
+		from enk_norge.setup import invoice_naming_series
+
+		draft.naming_series = invoice_naming_series(self.settings)
 		draft.enk_tax_treatment = "Not registered"
 		draft.enk_delivery_date = "2026-09-17"
 		draft.enk_delivery_description = "Native timesheet-utkast for test"

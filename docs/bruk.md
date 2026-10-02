@@ -41,7 +41,10 @@ uttak, MVA, årsoppgjør, SAF-T og utstyr.
 ## Kladd og bokføring
 
 Alt du registrerer blir først en kladd. Åpne kladden, kontroller beløpet og trykk «Bokfør».
-En kladd kan du slette. Et bokført bilag kan ikke endres eller slettes, så feil retter du
+«Rediger kladd» åpner skjemaet igjen med opplysningene fylt inn, og kladden beholder nummeret.
+Kladder fra timer, abonnement eller import redigeres ikke; slett dem og lag dem på nytt fra
+kilden. En kladd kan du slette, men en slettet fakturakladd etterlater et hull i
+fakturanumrene, så rediger heller enn å slette. Et bokført bilag kan ikke endres eller slettes, så feil retter du
 med kreditnota. Siden ber deg bekrefte før bokføring.
 
 ## Faktura
@@ -50,8 +53,15 @@ Velg «Ny faktura». Velg kunden, eller lag en ny med «Ny kunde». En ny kunde 
 fakturaadresse, og bedrifter kan få organisasjonsnummer og e-post. Fakturaadressen hentes
 automatisk når kunden er valgt.
 
-Skriv hva du har levert, antall og pris per enhet uten MVA. Er foretaket MVA-registrert,
-legges 25 % MVA til. Seksjonen «Utenlandsk kunde, unntak eller abonnement» trenger du bare
+Legg inn én linje per vare eller tjeneste: beskrivelse, antall og pris. «Legg til linje» gir
+flere linjer, for eksempel en linje per modul. Summen vises mens du skriver.
+
+Prisen er uten MVA. Er foretaket ikke MVA-registrert, er prisen det kunden betaler, og
+fakturaen nevner ikke MVA. Er foretaket registrert, legges 25 % MVA til, og fakturaen viser
+grunnlag, MVA og organisasjonsnummer med «MVA».
+
+Fakturaene nummereres fortløpende fra 1. Har sitet flere foretak, får hvert foretak et eget
+prefiks. Seksjonen «Utenlandsk kunde, unntak eller abonnement» trenger du bare
 for kunder i utlandet, unntatt omsetning eller abonnement.
 
 Kladden er ikke sendt til kunden. Etter bokføring laster du ned PDF-en og sender den selv.

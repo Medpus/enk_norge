@@ -22,6 +22,11 @@ function use_enk_sidebar(wrapper) {
 		const sidebar = frappe.app?.sidebar;
 		if (frappe.container?.page !== wrapper || !sidebar || !frappe.boot.workspace_sidebar_item?.["enk norge"]) return;
 		if (sidebar.sidebar_title !== "ENK Norge") sidebar.setup("ENK Norge");
+		// Begge menypunktene peker på samme side, så Frappe kan ikke se hvilket som er aktivt.
+		const active = frappe.get_route()[1] === "mva" ? "MVA" : "Oversikt";
+		$(".body-sidebar .standard-sidebar-item").each((_, item) => {
+			$(item).toggleClass("active-sidebar", $(item).text().trim() === active);
+		});
 	};
 	if (!wrapper.enk_sidebar_bound) {
 		wrapper.enk_sidebar_bound = true;
@@ -80,7 +85,12 @@ class EnkNorgePage {
 	}
 
 	open_document(doctype, name) {
-		frappe.set_route("enk-norge", "bilag", doctype, name);
+		const [, view, current_doctype, current_name] = frappe.get_route();
+		if (view === "bilag" && current_doctype === doctype && current_name === name) {
+			this.render_document(doctype, name);
+		} else {
+			frappe.set_route("enk-norge", "bilag", doctype, name);
+		}
 	}
 
 	render_loading() {
@@ -866,6 +876,9 @@ class EnkNorgePage {
 		const add = (action, label, primary = false, disabled = false) => buttons.push(
 			`<button class="btn ${primary ? "btn-primary" : "btn-default"} btn-sm" type="button" data-action="${action}" ${disabled ? "disabled" : ""}>${label}</button>`
 		);
+		if (doc.edit) {
+			buttons.push(`<button class="btn btn-default btn-sm" type="button" data-action="edit">${__("Rediger kladd")}</button>`);
+		}
 		if (needs_receipt) {
 			buttons.push(`<label class="btn btn-primary btn-sm enk-upload">${__("Legg ved kvittering")}
 				<input type="file" accept="image/*,application/pdf" class="enk-upload-input" aria-label="${__("Velg bilde eller PDF av kvitteringen")}"></label>`);
@@ -938,6 +951,9 @@ class EnkNorgePage {
 		on("credit-note", () => actions.credit_note(doc, open_created));
 		on("recognize", () => actions.recognize_revenue(doc, open_created));
 		on("tax-pool", () => this.open_add_to_tax_pool_dialog(doc, reload));
+		on("edit", () => doc.doctype === "Sales Invoice"
+			? this.open_sale_dialog(doc.company, doc.edit, doc.name)
+			: this.open_purchase_dialog(doc.company, doc.edit, doc.name));
 		on("next-period", () => frappe.call({
 			method: "enk_norge.documents.create_next_period",
 			args: { name: doc.name },
@@ -1066,16 +1082,12 @@ class EnkNorgePage {
 		dialog.show();
 	}
 
-	open_sale_dialog(company) {
+	open_sale_dialog(company, edit = null, draft = null) {
 		const dialog = new frappe.ui.Dialog({
-			title: __("Ny faktura"),
+			title: draft ? __("Rediger faktura {0}", [draft]) : __("Ny faktura"),
 			fields: [
 				...this.customer_fields(() => dialog),
-				{ fieldname: "description", label: __("Hva har du levert?"), fieldtype: "Small Text", reqd: 1, description: __("Står på fakturaen, for eksempel «Konsulentbistand september».") },
-				{ fieldtype: "Section Break" },
-				{ fieldname: "quantity", label: __("Antall"), fieldtype: "Float", precision: 2, default: 1, reqd: 1, description: __("Timer, stykk eller måneder.") },
-				{ fieldtype: "Column Break" },
-				{ fieldname: "unit_price", label: __("Pris per enhet"), fieldtype: "Currency", reqd: 1, description: __("Uten MVA. MVA legges til hvis foretaket er registrert.") },
+				{ fieldname: "lines", fieldtype: "HTML" },
 				{ fieldtype: "Section Break" },
 				{ fieldname: "delivery_date", label: __("Leveringsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
 				{ fieldtype: "Column Break" },
@@ -1105,12 +1117,14 @@ class EnkNorgePage {
 					description: __("Dokumenterer perioden. Fakturadatoen må være før eller på tjenestestart."),
 				},
 			],
-			primary_action_label: __("Lag kladd"),
+			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: async (values) => {
 				if (!values.customer_address) {
 					frappe.msgprint(__("Kunden mangler fakturaadresse. Opprett kunden med «Ny kunde», eller legg til adressen på kunden."));
 					return;
 				}
+				const items = lines.values();
+				if (!items) return;
 				if (!this.validate_currency_values(values, values.delivery_date, values.tax_treatment === "Export services", __("Valutasalg"))) {
 					return;
 				}
@@ -1130,10 +1144,17 @@ class EnkNorgePage {
 				}
 				delete values.defer_revenue;
 				delete values.address_display;
-				this.create_draft(dialog, "enk_norge.api.create_sale", { ...values, company });
+				delete values.lines;
+				this.create_draft(dialog, "enk_norge.api.create_sale", { ...values, items, company, ...(draft ? { draft } : {}) });
 			},
 		});
 		dialog.show();
+		const lines = new EnkInvoiceLines(dialog.get_field("lines").$wrapper, () => this.dashboard_data?.vat_registered);
+		if (edit) {
+			const { items, ...fields } = edit;
+			dialog.set_values(Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null && value !== undefined)));
+			lines.fill(items);
+		}
 		this.toggle_subscription_fields(dialog);
 	}
 
@@ -1402,10 +1423,10 @@ class EnkNorgePage {
 		return file.message.name;
 	}
 
-	open_purchase_dialog(company) {
+	open_purchase_dialog(company, edit = null, draft = null) {
 		const registered = Boolean(this.dashboard_data?.vat_registered);
 		const dialog = new frappe.ui.Dialog({
-			title: __("Nytt kjøp eller utgift"),
+			title: draft ? __("Rediger kjøp") : __("Nytt kjøp eller utgift"),
 			fields: [
 				...this.supplier_fields(() => dialog),
 				{ fieldname: "description", label: __("Hva er kjøpt, og hva skal det brukes til?"), fieldtype: "Small Text", reqd: 1, description: __("For eksempel «ChatGPT-abonnement til kundearbeid».") },
@@ -1471,7 +1492,7 @@ class EnkNorgePage {
 				{ fieldname: "tax_deductible_fraction_percent", label: __("Skattemessig fradrag av næringsdelen (%)"), fieldtype: "Float", default: 100, description: __("Normalt 100. Lavere bare når deler av kostnaden ikke gir fradrag, for eksempel representasjon.") },
 				{ fieldname: "tax_adjustment_reason", label: __("Begrunnelse for redusert fradrag"), fieldtype: "Small Text", depends_on: "eval:doc.tax_deductible_fraction_percent<100" },
 			],
-			primary_action_label: __("Lag kladd"),
+			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: (values) => {
 				delete values.supplier_display;
 				if (!registered) {
@@ -1508,10 +1529,18 @@ class EnkNorgePage {
 					business_fraction,
 					deductible_fraction,
 					tax_deductible_fraction,
+					...(draft ? { draft } : {}),
 				});
 			},
 		});
 		dialog.show();
+		if (edit) {
+			// Leverandøren settes først, fordi den avgjør om kjøpet er fra utlandet.
+			dialog.set_value("supplier", edit.supplier).then(() => {
+				const { supplier, ...fields } = edit;
+				dialog.set_values(Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null && value !== undefined)));
+			});
+		}
 	}
 
 	validate_currency_values(values, document_date, allowed_foreign_currency, label) {
@@ -1999,6 +2028,112 @@ class EnkNorgePage {
 				this.open_document(response.message.doctype, response.message.name);
 			},
 		});
+	}
+}
+
+function format_plain(value) {
+	// Tall fra API-et vises med komma, slik man skriver dem selv.
+	return Number(value || 0).toLocaleString("nb-NO", { maximumFractionDigits: 2, useGrouping: false });
+}
+
+function two_decimals(value) {
+	return Math.abs(Math.round(value * 100) - value * 100) < 1e-6;
+}
+
+// Fakturalinjer i fakturaskjemaet. Frappes tabellfelt blir for trangt på mobil.
+class EnkInvoiceLines {
+	constructor(wrapper, registered) {
+		this.wrapper = wrapper;
+		this.registered = registered;
+		this.wrapper.html(`<div class="enk-lines-editor">
+			<div class="enk-lines-head" aria-hidden="true"><span>${__("Beskrivelse")}</span><span>${__("Antall")}</span><span>${__("Pris")}</span><span>${__("Beløp")}</span><span></span></div>
+			<div class="enk-lines-rows"></div>
+			<button type="button" class="btn btn-default btn-sm enk-lines-add">${__("Legg til linje")}</button>
+			<div class="enk-lines-total"></div>
+		</div>`);
+		this.rows = this.wrapper.find(".enk-lines-rows");
+		this.wrapper.find(".enk-lines-add").on("click", () => this.add(true));
+		this.add(false);
+	}
+
+	add(focus) {
+		const row = $(`<div class="enk-line">
+			<textarea class="form-control enk-line-desc" rows="1" placeholder="${__("Hva er levert?")}" aria-label="${__("Beskrivelse")}"></textarea>
+			<input class="form-control enk-line-qty" inputmode="decimal" value="1" aria-label="${__("Antall")}">
+			<input class="form-control enk-line-rate" inputmode="decimal" placeholder="0" aria-label="${__("Pris per enhet")}">
+			<span class="enk-line-sum" aria-label="${__("Beløp")}"></span>
+			<button type="button" class="btn btn-xs btn-default enk-line-remove" aria-label="${__("Fjern linjen")}">${frappe.utils.icon("close", "xs")}</button>
+		</div>`);
+		row.find("input, textarea").on("input", () => this.update());
+		row.find(".enk-line-desc").on("input", (event) => {
+			event.target.style.height = "auto";
+			event.target.style.height = `${event.target.scrollHeight}px`;
+		});
+		row.find(".enk-line-remove").on("click", () => {
+			if (this.rows.children().length > 1) row.remove();
+			else row.find("textarea, .enk-line-rate").val("");
+			this.update();
+		});
+		this.rows.append(row);
+		this.update();
+		if (focus) row.find(".enk-line-desc").trigger("focus");
+	}
+
+	parse(value) {
+		// Godta både 1 200,50 og 1200.50.
+		const text = String(value || "").replace(/\s/g, "");
+		if (!text) return NaN;
+		const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
+		return Number(normalized);
+	}
+
+	update() {
+		let total = 0;
+		this.rows.children().each((_, el) => {
+			const row = $(el);
+			const amount = this.parse(row.find(".enk-line-qty").val()) * this.parse(row.find(".enk-line-rate").val());
+			row.find(".enk-line-sum").text(Number.isFinite(amount) ? format_nok(amount) : "");
+			if (Number.isFinite(amount)) total += amount;
+		});
+		const vat = this.registered() ? total * 0.25 : 0;
+		this.wrapper.find(".enk-lines-total").html(this.registered()
+			? `<span>${__("Sum eks. MVA")}</span><strong>${format_nok(total)}</strong><span>${__("Med 25 % MVA")}</span><strong>${format_nok(total + vat)}</strong>`
+			: `<span>${__("Å betale")}</span><strong>${format_nok(total)}</strong>`);
+	}
+
+	fill(items = []) {
+		this.rows.empty();
+		for (const item of items) {
+			this.add(false);
+			const row = this.rows.children().last();
+			row.find(".enk-line-desc").val(item.description || "");
+			row.find(".enk-line-qty").val(format_plain(item.quantity));
+			row.find(".enk-line-rate").val(format_plain(item.unit_price));
+		}
+		if (!items.length) this.add(false);
+		this.update();
+	}
+
+	values() {
+		const items = [];
+		let error = "";
+		this.rows.children().each((_, el) => {
+			const row = $(el);
+			const description = row.find(".enk-line-desc").val().trim();
+			const quantity = this.parse(row.find(".enk-line-qty").val());
+			const rate = this.parse(row.find(".enk-line-rate").val());
+			if (!description && !row.find(".enk-line-rate").val()) return;
+			if (!description) error = __("Hver linje må ha en beskrivelse.");
+			else if (!(quantity > 0) || !(rate > 0)) error = __("Oppgi antall og pris større enn null på linjen «{0}».", [frappe.utils.escape_html(description)]);
+			else if (!two_decimals(quantity) || !two_decimals(rate)) error = __("Antall og pris kan ha høyst to desimaler.");
+			items.push({ description, quantity: quantity.toFixed(2), unit_price: rate.toFixed(2) });
+		});
+		if (!error && !items.length) error = __("Legg inn minst én linje.");
+		if (error) {
+			frappe.msgprint(error);
+			return null;
+		}
+		return items;
 	}
 }
 

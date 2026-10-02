@@ -283,7 +283,7 @@ for report in ('ENK Year Report', 'ENK VAT Return'):
 
 setup_wizard_requires = 'assets/enk_norge/js/enk_setup.js'
 
-jinja = {'methods': ['enk_norge.printing.enk_invoice_issuer']}
+jinja = {'methods': ['enk_norge.printing.enk_invoice_issuer', 'enk_norge.printing.enk_invoice_buyer', 'enk_norge.printing.enk_format_number']}
 
 app_include_js = ['/assets/enk_norge/js/enk_actions.js']
 

@@ -127,7 +127,9 @@ def _apply_enk_invoice_fields(invoice, data, settings, event_id, fingerprint, it
 	invoice.price_list_currency = "NOK"
 	invoice.plc_conversion_rate = 1
 	invoice.debit_to = settings.receivable_account
-	invoice.naming_series = settings.invoice_prefix + "-.YYYY.-.#####"
+	from enk_norge.setup import invoice_naming_series
+
+	invoice.naming_series = invoice_naming_series(settings)
 	invoice.enk_tax_treatment = treatment
 	invoice.enk_tax_reason = data.get("tax_reason")
 	invoice.enk_external_id = event_id
