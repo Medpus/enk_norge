@@ -951,9 +951,14 @@ class EnkNorgePage {
 		on("credit-note", () => actions.credit_note(doc, open_created));
 		on("recognize", () => actions.recognize_revenue(doc, open_created));
 		on("tax-pool", () => this.open_add_to_tax_pool_dialog(doc, reload));
-		on("edit", () => doc.doctype === "Sales Invoice"
-			? this.open_sale_dialog(doc.company, doc.edit, doc.name)
-			: this.open_purchase_dialog(doc.company, doc.edit, doc.name));
+		on("edit", async () => {
+			// Skjemaet trenger MVA-statusen. Den er ikke hentet når siden åpnes rett på et bilag.
+			if (!this.dashboard_data) {
+				this.dashboard_data = (await frappe.call({ method: "enk_norge.api.dashboard", args: { company: doc.company } })).message || {};
+			}
+			if (doc.doctype === "Sales Invoice") this.open_sale_dialog(doc.company, doc.edit, doc.name);
+			else this.open_purchase_dialog(doc.company, doc.edit, doc.name);
+		});
 		on("next-period", () => frappe.call({
 			method: "enk_norge.documents.create_next_period",
 			args: { name: doc.name },
@@ -1085,7 +1090,7 @@ class EnkNorgePage {
 	open_sale_dialog(company, edit = null, draft = null) {
 		const dialog = new frappe.ui.Dialog({
 			title: draft ? __("Rediger faktura {0}", [draft]) : __("Ny faktura"),
-			fields: [
+			fields: this.with_defaults(edit, [
 				...this.customer_fields(() => dialog),
 				{ fieldname: "lines", fieldtype: "HTML" },
 				{ fieldtype: "Section Break" },
@@ -1116,7 +1121,7 @@ class EnkNorgePage {
 					depends_on: "eval:doc.defer_revenue",
 					description: __("Dokumenterer perioden. Fakturadatoen må være før eller på tjenestestart."),
 				},
-			],
+			]),
 			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: async (values) => {
 				if (!values.customer_address) {
@@ -1151,11 +1156,19 @@ class EnkNorgePage {
 		dialog.show();
 		const lines = new EnkInvoiceLines(dialog.get_field("lines").$wrapper, () => this.dashboard_data?.vat_registered);
 		if (edit) {
-			const { items, ...fields } = edit;
-			dialog.set_values(Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null && value !== undefined)));
-			lines.fill(items);
+			lines.fill(edit.items);
+			this.fill_billing_address(dialog).then(() => dialog.set_value("customer_address", edit.customer_address));
 		}
 		this.toggle_subscription_fields(dialog);
+	}
+
+	with_defaults(edit, fields) {
+		// Verdier for en kladd gis som startverdier. Å sette datofelt etter at skjemaet er åpnet
+		// kan låse Frappes datovelger i en uendelig løkke.
+		if (!edit) return fields;
+		return fields.map((field) => (field.fieldname && edit[field.fieldname] !== null && edit[field.fieldname] !== undefined
+			? { ...field, default: edit[field.fieldname] }
+			: field));
 	}
 
 	customer_fields(get_dialog) {
@@ -1427,7 +1440,7 @@ class EnkNorgePage {
 		const registered = Boolean(this.dashboard_data?.vat_registered);
 		const dialog = new frappe.ui.Dialog({
 			title: draft ? __("Rediger kjøp") : __("Nytt kjøp eller utgift"),
-			fields: [
+			fields: this.with_defaults(edit, [
 				...this.supplier_fields(() => dialog),
 				{ fieldname: "description", label: __("Hva er kjøpt, og hva skal det brukes til?"), fieldtype: "Small Text", reqd: 1, description: __("For eksempel «ChatGPT-abonnement til kundearbeid».") },
 				{
@@ -1491,7 +1504,7 @@ class EnkNorgePage {
 				},
 				{ fieldname: "tax_deductible_fraction_percent", label: __("Skattemessig fradrag av næringsdelen (%)"), fieldtype: "Float", default: 100, description: __("Normalt 100. Lavere bare når deler av kostnaden ikke gir fradrag, for eksempel representasjon.") },
 				{ fieldname: "tax_adjustment_reason", label: __("Begrunnelse for redusert fradrag"), fieldtype: "Small Text", depends_on: "eval:doc.tax_deductible_fraction_percent<100" },
-			],
+			]),
 			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: (values) => {
 				delete values.supplier_display;
@@ -1534,13 +1547,7 @@ class EnkNorgePage {
 			},
 		});
 		dialog.show();
-		if (edit) {
-			// Leverandøren settes først, fordi den avgjør om kjøpet er fra utlandet.
-			dialog.set_value("supplier", edit.supplier).then(() => {
-				const { supplier, ...fields } = edit;
-				dialog.set_values(Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null && value !== undefined)));
-			});
-		}
+		if (edit) this.fill_supplier_country(dialog);
 	}
 
 	validate_currency_values(values, document_date, allowed_foreign_currency, label) {
