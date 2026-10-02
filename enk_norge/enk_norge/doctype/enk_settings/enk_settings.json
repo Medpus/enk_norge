@@ -128,7 +128,7 @@
    "label": "Fakturaprefiks",
    "fieldtype": "Data",
    "reqd": 0,
-   "description": "Tom gir fakturanummer 1, 2, 3. Prefiks trengs bare når flere foretak deler samme site."
+   "description": "Tom gir fakturanummer 1001, 1002, 1003. Prefiks trengs bare når flere foretak deler samme site."
   },
   {
    "fieldname": "frozen_through",

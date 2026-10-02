@@ -288,7 +288,7 @@ class SimpleFlowsTest(unittest.TestCase):
 	def test_invoice_with_several_lines_and_plain_numbers(self):
 		from enk_norge.printing import enk_format_number
 
-		# Et foretak alene på sitet får fakturanummer 1, 2, 3. Testsitet har flere, så prefiksen fjernes her.
+		# Et foretak alene på sitet får fakturanummer fra 1001. Testsitet har flere, så prefiksen fjernes her.
 		frappe.db.set_value("ENK Settings", self.company, "invoice_prefix", "")
 		customer = self.customer()
 		draft = create_sale(
@@ -306,7 +306,7 @@ class SimpleFlowsTest(unittest.TestCase):
 				],
 			)
 		)
-		self.assertTrue(draft["name"].isdigit(), draft["name"])
+		self.assertTrue(draft["name"].isdigit() and int(draft["name"]) >= 1001, draft["name"])
 		invoice = frappe.get_doc(draft["doctype"], draft["name"])
 		self.assertEqual([row.description for row in invoice.items][1], "Palli, modul for strekkode")
 		self.assertEqual(invoice.grand_total, 10000)

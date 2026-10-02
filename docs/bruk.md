@@ -60,7 +60,7 @@ Prisen er uten MVA. Er foretaket ikke MVA-registrert, er prisen det kunden betal
 fakturaen nevner ikke MVA. Er foretaket registrert, legges 25 % MVA til, og fakturaen viser
 grunnlag, MVA og organisasjonsnummer med «MVA».
 
-Fakturaene nummereres fortløpende fra 1. Har sitet flere foretak, får hvert foretak et eget
+Fakturaene nummereres fortløpende fra 1001. Har sitet flere foretak, får hvert foretak et eget
 prefiks. Seksjonen «Utenlandsk kunde, unntak eller abonnement» trenger du bare
 for kunder i utlandet, unntatt omsetning eller abonnement.
 

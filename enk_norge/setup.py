@@ -167,9 +167,18 @@ def repair_completed_setup_home_page():
 	return True
 
 
+INVOICE_START = 1001
+
+
 def invoice_naming_series(settings):
-	"""Fortløpende fakturaserie. Uten prefiks blir nummeret bare 1, 2, 3 osv."""
+	"""Fortløpende fakturaserie. Uten prefiks blir nummeret 1001, 1002 osv."""
 	if not settings.invoice_prefix:
+		# Frappe teller serien uten prefiks under navnet "". Løft den til startnummeret én gang.
+		frappe.db.sql(
+			"""insert into `tabSeries` (name, current) values ('', %(start)s)
+			on duplicate key update current = greatest(current, %(start)s)""",
+			{"start": INVOICE_START - 1},
+		)
 		return ".#"
 	return settings.invoice_prefix + "-.YYYY.-.#####"
 
@@ -291,7 +300,7 @@ def create_company(data):
 		"history_confirmed",
 	):
 		settings.set(key, data.get(key))
-	# Ett foretak på sitet får fakturanummer 1, 2, 3. Flere foretak trenger prefiks for egne serier.
+	# Ett foretak på sitet får fakturanummer 1001, 1002, 1003. Flere foretak trenger prefiks for egne serier.
 	settings.invoice_prefix = "ENK-" + abbr if frappe.db.count("ENK Settings") else ""
 	for code, _label, root, _account_type, purpose, standard in ACCOUNTS:
 		account = frappe.db.get_value("Account", {"company": company.name, "account_number": code}, "name")

@@ -1,4 +1,4 @@
-"""Bytt til fakturanummer 1, 2, 3 der ingen faktura er utstedt i den gamle serien.
+"""Bytt til fakturanummer fra 1001 der ingen faktura er utstedt i den gamle serien.
 
 Et foretak som alt har bokført en faktura, beholder serien sin. Ellers ville nummerrekken
 blitt brutt. Kladder i den gamle serien kan ikke bokføres etter byttet og må lages på nytt.
