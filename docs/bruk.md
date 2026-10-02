@@ -75,13 +75,10 @@ Fakturaene nummereres fortløpende fra 1001. Har sitet flere foretak, får hvert
 prefiks. Seksjonen «Utenlandsk kunde, unntak eller abonnement» trenger du bare
 for kunder i utlandet, unntatt omsetning eller abonnement.
 
-Kladden er ikke sendt til kunden. Etter bokføring trykker du «Send til kunde». E-posten er
-fylt ut med kundens adresse, emne og en kort melding, og fakturaen legges ved som PDF. PDF-en
-lagres på fakturaen, og fakturaen viser hvem den er sendt til og når. Første gang ber appen deg
-sette opp e-posten fakturaene skal sendes fra. Bruk et app-passord for Gmail og Microsoft 365.
-Du kan også laste ned PDF-en og sende den selv.
-Når pengene kommer inn, trykker du «Registrer innbetaling» og oppgir datoen og teksten fra
-kontoutskriften.
+Kladden er ikke sendt til kunden. Etter bokføring laster du ned PDF-en og sender den selv.
+Når pengene kommer inn, trykker du «Merk som betalt» og oppgir datoen. Har kunden bare betalt en
+del, endrer du beløpet. Fakturaen står da som ikke betalt til resten er kommet inn. Betalingen
+registreres og bokføres med en gang, og står inne i fakturaen.
 
 Ved feil på en bokført faktura lager «Lag kreditnota» en kladd som viser til originalen.
 En erstatningsfaktura får eget nummer.
@@ -151,8 +148,11 @@ Et ENK kan ikke skylde eieren penger. Det du betaler privat, føres som innskudd
 på kontoen «Innskudd og private utlegg», som er egenkapital. Kostnaden gir fradrag som vanlig,
 og foretakets bankkonto i regnskapet blir urørt.
 
-Er kjøpet «Ikke betalt ennå», registrerer du betalingen senere med «Betalt fra bankkontoen»
-eller «Betalt med egne penger» på det bokførte kjøpet.
+Er kjøpet «Ikke betalt ennå», trykker du «Merk som betalt» på det bokførte kjøpet når det er
+betalt, og velger om det ble betalt fra foretakskontoen eller med egne penger.
+
+Betaling i utenlandsk valuta registreres med «Registrer betaling i valuta». Der oppgir du også
+beløpet i NOK fra kontoutskriften og kursen, og bokfører betalingen etterpå.
 
 ## Utstyr og avskrivning
 

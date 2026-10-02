@@ -63,9 +63,7 @@ redigert forfallsdato lagres. Kortkjøp betales i samme steg som bokføringen, b
 penger og fra foretakskontoen. Datoer vises og skrives som dd.mm.åååå, og beløp rundes ikke
 av til hele kroner. Oversikten viser inntekter og kostnader per måned, kostnader per type,
 klikkbare tall, MVA-grensen siste 12 måneder og forfalte fakturaer. Kunder, leverandører og
-foretakets kontaktinformasjon kan rettes. Utsending av faktura på e-post er prøvd med
-avvisning av kladd og feil e-postserver i nettleseren, og med arkivert PDF i testene. Faktisk
-levering til en mottaker er ikke prøvd, fordi det krever en ekte e-postkonto.
+foretakets kontaktinformasjon kan rettes.
 
 Tower har daglig fullbackup og Nobara mottar en kryptert kopi. Begge kjøringene er
 prøvd. Se [backup og gjenoppretting](backup.md) for tidspunkt, bevaring og nøkkelbehov.

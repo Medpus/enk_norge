@@ -262,11 +262,6 @@ def _summary(doc):
 	)
 	if doc.doctype in ("Sales Invoice", "Purchase Invoice") and doc.docstatus == 1:
 		result["payments"] = _payments(doc)
-	if doc.doctype == "Sales Invoice" and doc.docstatus == 1:
-		from enk_norge.sending import sendings
-
-		result["sendings"] = sendings(doc)
-		result["customer_email"] = frappe.db.get_value("Customer", doc.customer, "email_id")
 	if doc.doctype == "Purchase Invoice":
 		result["payment_method"] = doc.get("enk_payment_method") or ""
 	if doc.doctype == "Purchase Invoice" and doc.docstatus == 1:
@@ -450,6 +445,50 @@ def submit_document(doctype, name):
 	return _summary(doc)
 
 
+@frappe.whitelist(methods=["POST"])
+def mark_paid(doctype, name, posting_date, amount=None, method="Bank", fee="0", reference=None):
+	"""Registrer og bokfør betalingen av en bokført faktura eller et kjøp i ett steg.
+
+	Betaling i utenlandsk valuta krever bankens NOK-beløp og kurs, og går fortsatt via utkast.
+	"""
+	from enk_norge.api import pay_purchase_privately
+	from enk_norge.banking import create_payment
+
+	if doctype not in ("Sales Invoice", "Purchase Invoice"):
+		frappe.throw("Velg en faktura eller et kjøp.")
+	doc = _load(doctype, name)
+	if doc.docstatus != 1 or doc.is_return or flt(doc.outstanding_amount) <= 0:
+		frappe.throw("Bare bokførte, ubetalte fakturaer og kjøp kan merkes som betalt.")
+	if (doc.currency or "NOK") != "NOK":
+		frappe.throw("Betaling i utenlandsk valuta registreres med bankens beløp i NOK og kurs.")
+	if method not in ("Bank", "Private") or (method == "Private" and doctype != "Purchase Invoice"):
+		frappe.throw("Velg hvordan det ble betalt.")
+	if method == "Private":
+		payment = pay_purchase_privately(doc.name, posting_date=posting_date)
+	else:
+		# Referansen hindrer dobbeltregistrering, så hver delbetaling får sitt eget løpenummer.
+		number = len(_payments(doc)) + 1
+		default_reference = (
+			f"Innbetaling faktura {doc.name}, {number}" if doctype == "Sales Invoice" else f"Betaling {doc.bill_no or doc.name}, {number}"
+		)
+		payment = create_payment(
+			doctype,
+			doc.name,
+			amount=str(flt(amount or doc.outstanding_amount, 2)),
+			posting_date=posting_date,
+			reference=((reference or "").strip() or default_reference)[:140],
+			fee=str(flt(fee or 0, 2)),
+		)
+	entry = frappe.get_doc(payment["doctype"], payment["name"])
+	if entry.docstatus == 0:
+		entry.check_permission("submit")
+		entry.submit()
+	if doctype == "Purchase Invoice":
+		# Betalingsmåten er bare visning i listen. Den endrer ikke bokføringen.
+		doc.db_set("enk_payment_method", method, update_modified=False)
+	return _summary(_load(doctype, name))
+
+
 def _pay_on_submit(doc):
 	"""Kortkjøp er betalt samtidig. Registrer og bokfør betalingen sammen med kjøpet.
 
@@ -485,7 +524,7 @@ def _payments(doc):
 		from `tabJournal Entry Account` a join `tabJournal Entry` je on je.name = a.parent
 		where a.reference_type = %(doctype)s and a.reference_name = %(name)s and je.docstatus = 1
 		and je.enk_payment_key is not null
-		order by posting_date""",
+		order by posting_date, name""",
 		dict(doctype=doc.doctype, name=doc.name),
 		as_dict=True,
 	)

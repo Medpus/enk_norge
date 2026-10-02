@@ -1085,13 +1085,9 @@ class EnkNorgePage {
 				<dl class="enk-facts">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(String(value))}</dd></div>`).join("")}</dl>
 				${lines}
 				<dl class="enk-totals">${totals.map(([label, value]) => `<div><dt>${label}</dt><dd>${money(value)}</dd></div>`).join("")}</dl>
-				${(doc.sendings || []).length ? `<section class="enk-payments">
-					<h3>${__("Sendt")}</h3>
-					<ul>${doc.sendings.map((sent) => `<li>${escape(sent.recipients)} <span class="text-muted small">${frappe.datetime.str_to_user(sent.sent.slice(0, 10))}</span></li>`).join("")}</ul>
-				</section>` : ""}
 				${(doc.payments || []).length ? `<section class="enk-payments">
 					<h3>${__("Betaling")}</h3>
-					<ul>${doc.payments.map((payment) => `<li><a href="/desk/enk-norge/bilag/${encodeURIComponent(payment.doctype)}/${encodeURIComponent(payment.name)}" data-open-doctype="${escape(payment.doctype)}" data-open-name="${escape(payment.name)}">${payment.doctype === "Journal Entry" ? __("Med egne penger") : __("Fra bankkontoen")} ${frappe.datetime.str_to_user(payment.posting_date)}</a> <span class="text-muted small">${escape(payment.name)}</span></li>`).join("")}</ul>
+					<ul>${doc.payments.map((payment) => `<li><a href="/desk/enk-norge/bilag/${encodeURIComponent(payment.doctype)}/${encodeURIComponent(payment.name)}" data-open-doctype="${escape(payment.doctype)}" data-open-name="${escape(payment.name)}">${payment.doctype === "Journal Entry" ? __("Med egne penger") : doc.doctype === "Sales Invoice" ? __("Innbetalt") : __("Fra bankkontoen")} ${frappe.datetime.str_to_user(payment.posting_date)}</a> <span class="text-muted small">${escape(payment.name)}</span></li>`).join("")}</ul>
 				</section>` : ""}
 				<section class="enk-attachments" aria-labelledby="enk-attachments-title">
 					<h3 id="enk-attachments-title">${__("Vedlegg")}</h3>
@@ -1129,10 +1125,8 @@ class EnkNorgePage {
 			}
 		} else if (doc.status === "unpaid") {
 			text = doc.doctype === "Sales Invoice"
-				? (doc.sendings || []).length
-					? __("Fakturaen er sendt. Registrer betalingen når pengene kommer inn.")
-					: __("Fakturaen er bokført. Send den til kunden, og registrer betalingen når pengene kommer inn.")
-				: __("Kjøpet er bokført. Registrer hvordan det ble betalt.");
+				? __("Fakturaen er bokført. Last ned PDF-en og send den til kunden. Trykk «Merk som betalt» når pengene kommer inn.")
+				: __("Kjøpet er bokført. Trykk «Merk som betalt» når det er betalt.");
 		}
 		return text ? `<p class="enk-guidance">${text}</p>` : "";
 	}
@@ -1154,13 +1148,12 @@ class EnkNorgePage {
 		if (doc.doctype === "Sales Invoice") {
 			add("pdf", doc.docstatus === 0 ? __("Forhåndsvis PDF") : __("Last ned PDF"));
 		}
-		if (doc.doctype === "Sales Invoice" && doc.docstatus === 1) {
-			add("send", (doc.sendings || []).length ? __("Send på nytt") : __("Send til kunde"), !(doc.sendings || []).length);
-		}
 		if (doc.docstatus === 1 && ["unpaid", "overdue"].includes(doc.status)) {
-			add("bank-payment", doc.doctype === "Sales Invoice" ? __("Registrer innbetaling") : __("Betalt fra bankkontoen"), doc.doctype !== "Sales Invoice" || (doc.sendings || []).length > 0);
-			if (doc.doctype === "Purchase Invoice" && (doc.currency || "NOK") === "NOK") {
-				add("private-payment", __("Betalt med egne penger"));
+			if ((doc.currency || "NOK") === "NOK") {
+				add("mark-paid", __("Merk som betalt"), true);
+			} else {
+				// Valuta krever bankens NOK-beløp og kurs, og går derfor via utkast.
+				add("bank-payment", __("Registrer betaling i valuta"), true);
 			}
 		}
 		if (doc.docstatus === 1 && Number(doc.tax_pool_remaining) > 0) {
@@ -1216,11 +1209,10 @@ class EnkNorgePage {
 			window.open(`/api/method/frappe.utils.print_format.download_pdf?${params}`, "_blank", "noopener");
 		});
 		on("bank-payment", () => actions.bank_payment(doc, open_created));
-		on("private-payment", () => actions.pay_privately(doc, open_created));
+		on("mark-paid", () => this.open_mark_paid_dialog(doc, reload));
 		on("credit-note", () => actions.credit_note(doc, open_created));
 		on("recognize", () => actions.recognize_revenue(doc, open_created));
 		on("tax-pool", () => this.open_add_to_tax_pool_dialog(doc, reload));
-		on("send", () => this.open_send_dialog(doc, reload));
 		on("edit", async () => {
 			// Skjemaet trenger MVA-statusen. Den er ikke hentet når siden åpnes rett på et bilag.
 			if (!this.dashboard_data) {
@@ -1282,107 +1274,61 @@ class EnkNorgePage {
 		dialog.show();
 	}
 
-	async open_send_dialog(doc, done) {
-		const status = (await frappe.call({ method: "enk_norge.sending.email_status" })).message;
-		if (!status.ready) {
-			this.open_email_setup_dialog(() => this.open_send_dialog(doc, done));
-			return;
-		}
-		const company = doc.company;
-		const amount = format_money(doc.grand_total, doc.currency);
-		const due = doc.due_date ? frappe.datetime.str_to_user(doc.due_date) : "";
-		const kind = doc.is_return ? __("Kreditnota") : __("Faktura");
+	open_mark_paid_dialog(doc, done) {
+		const sale = doc.doctype === "Sales Invoice";
+		const outstanding = Number(doc.outstanding_amount);
 		const dialog = new frappe.ui.Dialog({
-			title: __("Send {0} {1}", [kind.toLowerCase(), doc.name]),
-			fields: [
-				{ fieldname: "recipient", label: __("Til"), fieldtype: "Data", options: "Email", reqd: 1, default: doc.customer_email || "" },
-				{ fieldname: "subject", label: __("Emne"), fieldtype: "Data", reqd: 1, default: __("{0} {1} fra {2}", [kind, doc.name, company]) },
-				{
-					fieldname: "message",
-					label: __("Melding"),
-					fieldtype: "Small Text",
-					reqd: 1,
-					default: doc.is_return
-						? __("Hei,\n\nVedlagt er kreditnota {0}.\n\nMed vennlig hilsen\n{1}", [doc.name, company])
-						: __("Hei,\n\nVedlagt er faktura {0} på {1} med forfall {2}.\n\nMed vennlig hilsen\n{3}", [doc.name, amount, due, company]),
-				},
-				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Fakturaen legges ved som PDF og sendes fra {0}. PDF-en lagres på fakturaen.", [frappe.utils.escape_html(status.sender)])}</p>` },
-			],
-			primary_action_label: __("Send"),
-			primary_action: (values) => frappe.call({
-				method: "enk_norge.sending.send_invoice",
-				args: { name: doc.name, ...values },
-				btn: dialog.get_primary_btn(),
-				freeze: true,
-				freeze_message: __("Sender"),
-				callback: () => {
-					dialog.hide();
-					frappe.show_alert({ message: __("Sendt til {0}.", [frappe.utils.escape_html(values.recipient)]), indicator: "green" });
-					done();
-				},
-			}),
-		});
-		dialog.show();
-	}
-
-	open_email_setup_dialog(done) {
-		const presets = {
-			gmail: { smtp_server: "smtp.gmail.com", smtp_port: 587, security: "tls" },
-			outlook: { smtp_server: "smtp.office365.com", smtp_port: 587, security: "tls" },
-			domeneshop: { smtp_server: "smtp.domeneshop.no", smtp_port: 587, security: "tls" },
-			other: {},
-		};
-		const dialog = new frappe.ui.Dialog({
-			title: __("E-post for utsending"),
-			fields: [
-				{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Fakturaer sendes fra denne kontoen. Appen kobler seg til e-posttjenesten din og sender på dine vegne. Passordet lagres kryptert.")}</p>` },
-				{
-					fieldname: "provider",
-					label: __("E-posttjeneste"),
+			title: sale ? __("Faktura {0} er betalt", [doc.name]) : __("Kjøpet er betalt"),
+			fields: this.with_defaults(null, [
+				...(sale ? [] : [{
+					fieldname: "method",
+					label: __("Hvordan ble det betalt?"),
 					fieldtype: "Select",
-					options: [
-						{ label: "Gmail / Google Workspace", value: "gmail" },
-						{ label: "Outlook / Microsoft 365", value: "outlook" },
-						{ label: "Domeneshop", value: "domeneshop" },
-						{ label: __("Annen"), value: "other" },
-					],
-					default: "gmail",
-					change: () => dialog.set_values(presets[dialog.get_value("provider")] || {}),
-				},
-				{ fieldname: "email", label: __("E-postadresse"), fieldtype: "Data", options: "Email", reqd: 1 },
-				{
-					fieldname: "password",
-					label: __("Passord"),
-					fieldtype: "Password",
+					options: [{ label: __("Fra foretakskontoen"), value: "Bank" }, { label: __("Med egne penger"), value: "Private" }],
+					default: "Bank",
 					reqd: 1,
-					description: __("For Gmail og Microsoft 365 må du bruke et app-passord, ikke det vanlige passordet. Det lager du i kontoens sikkerhetsinnstillinger."),
+				}]),
+				{ fieldname: "posting_date", label: sale ? __("Dato pengene kom inn") : __("Dato det ble betalt"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
+				{
+					fieldname: "amount",
+					label: __("Beløp"),
+					fieldtype: "Currency",
+					options: "NOK",
+					default: outstanding,
+					reqd: 1,
+					depends_on: "eval:doc.method!='Private'",
+					description: sale ? __("Endre beløpet hvis kunden bare har betalt en del.") : "",
 				},
-				{ fieldtype: "Section Break", label: __("Tilkobling"), collapsible: 1 },
-				{ fieldname: "smtp_server", label: __("SMTP-server"), fieldtype: "Data", default: presets.gmail.smtp_server },
-				{ fieldname: "smtp_port", label: __("Port"), fieldtype: "Int", default: 587 },
-				{ fieldname: "security", label: __("Sikkerhet"), fieldtype: "Select", options: [{ label: "STARTTLS", value: "tls" }, { label: "SSL", value: "ssl" }, { label: __("Ingen"), value: "none" }], default: "tls" },
-			],
-			primary_action_label: __("Test og lagre"),
+				{ fieldtype: "Section Break", label: __("Gebyr og referanse"), collapsible: 1, depends_on: "eval:doc.method!='Private'" },
+				{ fieldname: "fee", label: __("Bankgebyr (NOK)"), fieldtype: "Currency", options: "NOK", default: 0, description: __("Bare gebyr uten MVA som er trukket fra beløpet.") },
+				{ fieldname: "reference", label: __("Referanse fra kontoutskriften"), fieldtype: "Data", description: __("Valgfritt. Fylles ut automatisk hvis du lar det stå tomt.") },
+			]),
+			primary_action_label: __("Merk som betalt"),
 			primary_action: (values) => {
-				if (!values.smtp_server) {
-					frappe.msgprint(__("Oppgi SMTP-serveren til e-posttjenesten."));
+				if (!this.valid_dates(dialog)) return;
+				const method = sale ? "Bank" : values.method;
+				const amount = Number(values.amount || outstanding);
+				if (method === "Bank" && (!(amount > 0) || amount > outstanding + 0.004)) {
+					frappe.msgprint(__("Beløpet må være mer enn null og ikke mer enn det som gjenstår, {0}.", [frappe.utils.escape_html(format_nok(outstanding))]));
 					return;
 				}
 				frappe.call({
-					method: "enk_norge.sending.setup_email_account",
-					args: { email: values.email, password: values.password, smtp_server: values.smtp_server, smtp_port: values.smtp_port || 587, security: values.security || "tls" },
+					method: "enk_norge.documents.mark_paid",
+					args: { doctype: doc.doctype, name: doc.name, posting_date: values.posting_date, amount: method === "Bank" ? amount.toFixed(2) : null, method, fee: Number(values.fee || 0).toFixed(2), reference: values.reference || null },
 					btn: dialog.get_primary_btn(),
 					freeze: true,
-					freeze_message: __("Tester tilkoblingen"),
-					callback: () => {
+					freeze_message: __("Registrerer betalingen"),
+					callback: (response) => {
 						dialog.hide();
-						frappe.show_alert({ message: __("E-post for utsending er satt opp."), indicator: "green" });
-						done?.();
+						const paid = response.message.status === "paid";
+						frappe.show_alert({ message: paid ? __("Betalingen er registrert.") : __("Delbetalingen er registrert. {0} gjenstår.", [frappe.utils.escape_html(format_nok(response.message.outstanding_amount))]), indicator: "green" });
+						done();
 					},
 				});
 			},
 		});
 		dialog.show();
+		this.use_native_dates(dialog);
 	}
 
 	async upload_attachment(doc, input, done) {
@@ -1419,7 +1365,6 @@ class EnkNorgePage {
 		const profile = response.message;
 		const escape = frappe.utils.escape_html;
 		const locked = profile.vat_registered && profile.has_postings;
-		const email_status = (await frappe.call({ method: "enk_norge.sending.email_status" })).message;
 		const facts = [
 			[__("Organisasjonsnummer"), profile.organization_number],
 			[__("Adresse"), `${profile.address_line}, ${profile.postal_code} ${profile.city}`],
@@ -1437,8 +1382,6 @@ class EnkNorgePage {
 				{ fieldname: "city", label: __("Poststed"), fieldtype: "Data", default: profile.city, reqd: 1 },
 				{ fieldname: "phone", label: __("Telefon"), fieldtype: "Data", default: profile.phone, reqd: 1 },
 				{ fieldname: "email", label: __("E-post"), fieldtype: "Data", options: "Email", default: profile.email },
-				{ fieldtype: "HTML", fieldname: "email_status" },
-				{ fieldname: "setup_email", label: __("Sett opp e-post for utsending av fakturaer"), fieldtype: "Button", click: () => this.open_email_setup_dialog(() => dialog.hide()) },
 				{ fieldtype: "Section Break", label: __("MVA-registrering") },
 				{
 					fieldtype: "HTML",
@@ -1479,9 +1422,6 @@ class EnkNorgePage {
 			},
 		});
 		dialog.show();
-		dialog.get_field("email_status").$wrapper.html(`<p class="text-muted small">${email_status.ready
-			? __("Fakturaer sendes fra {0}.", [frappe.utils.escape_html(email_status.sender)])
-			: __("E-post for utsending er ikke satt opp. Fakturaer kan lastes ned og sendes manuelt til den er det.")}</p>`);
 	}
 
 	open_sale_dialog(company, edit = null, draft = null) {

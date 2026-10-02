@@ -45,7 +45,6 @@ class SimpleFlowsTest(unittest.TestCase):
 			)
 		).insert()
 		frappe.set_user(owner.name)
-		self.owner_name = owner.name
 
 	def customer(self, **overrides):
 		data = dict(
@@ -449,28 +448,18 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertIn("PO-4711", html)
 		self.assertIn("post@example.invalid", html)
 
-	def test_posted_invoice_is_sent_with_archived_pdf(self):
-		from enk_norge import sending
-
-		from unittest.mock import patch
-
-		# Ingen ekte SMTP i testene. Frappe hopper over tilkoblingstest og utsending i testmodus.
-		frappe.flags.mute_emails = True
-		self.addCleanup(setattr, frappe.flags, "mute_emails", False)
-		in_test = patch.object(frappe, "in_test", True)
-		in_test.start()
-		self.addCleanup(in_test.stop)
-		customer = self.customer(email="kunde@example.invalid")
-		draft = create_sale(dict(company=self.company, customer=customer["customer"], customer_address=customer["customer_address"], posting_date="2026-09-17", delivery_date="2026-09-17", due_date="2026-12-31", items=[dict(description="Arbeid", quantity="1", unit_price="100")]))
+	def test_invoice_and_purchase_can_be_marked_paid_in_one_step(self):
+		customer = self.customer()
+		sale = create_sale(dict(company=self.company, customer=customer["customer"], customer_address=customer["customer_address"], posting_date="2026-09-17", delivery_date="2026-09-17", due_date="2026-12-31", items=[dict(description="Arbeid", quantity="1", unit_price="10000")]))
+		documents.submit_document(sale["doctype"], sale["name"])
+		partly = documents.mark_paid(sale["doctype"], sale["name"], "2026-09-20", amount="4000")
+		self.assertEqual((partly["status"], partly["outstanding_amount"]), ("unpaid", "6000.0"))
+		paid = documents.mark_paid(sale["doctype"], sale["name"], "2026-09-25")
+		self.assertEqual((paid["status"], len(paid["payments"])), ("paid", 2))
 		with self.assertRaises(frappe.ValidationError):
-			sending.send_invoice(draft["name"], "kunde@example.invalid", "Faktura", "Hei")
-		documents.submit_document(draft["doctype"], draft["name"])
-		if not sending.email_status()["ready"]:
-			frappe.set_user("Administrator")
-			sending.setup_email_account("utsending@example.invalid", "hemmelig", "smtp.example.invalid", 587, "tls")
-			frappe.set_user(self.owner_name)
-		result = sending.send_invoice(draft["name"], "kunde@example.invalid", f"Faktura {draft['name']}", "Hei!\n\nVedlagt er fakturaen.")
-		self.assertEqual(result["sendings"][0]["recipients"], "kunde@example.invalid")
-		files = frappe.get_all("File", filters={"attached_to_doctype": "Sales Invoice", "attached_to_name": draft["name"]}, pluck="file_name")
-		self.assertIn(f"Faktura-{draft['name']}.pdf", files)
-		self.assertEqual(documents.get_document(draft["doctype"], draft["name"])["sendings"][0]["recipients"], "kunde@example.invalid")
+			documents.mark_paid(sale["doctype"], sale["name"], "2026-09-26")
+		supplier = parties.create_supplier(dict(supplier_name="Fiktiv leverandør " + uuid4().hex[:6]))
+		purchase = create_purchase(dict(company=self.company, supplier=supplier["supplier"], posting_date="2026-09-17", bill_date="2026-09-17", bill_no="FAK-1", description="Kontorstol", category="expense", gross_amount="1500", payment_method="Unpaid"))
+		self.attach(purchase["doctype"], purchase["name"])
+		self.assertEqual(documents.submit_document(purchase["doctype"], purchase["name"])["status"], "unpaid")
+		self.assertEqual(documents.mark_paid(purchase["doctype"], purchase["name"], "2026-10-01", method="Private")["status"], "paid")
