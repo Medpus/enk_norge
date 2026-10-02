@@ -58,14 +58,18 @@ def _status(doctype, row):
 
 
 @frappe.whitelist()
-def list_documents(company, kind="all", search="", limit=50):
+def list_documents(company, kind="all", search="", limit=50, from_date=None, to_date=None, account=None):
 	get_settings(company)
 	doctypes = KINDS.get(kind) or tuple(DOCTYPES)
 	limit = min(max(int(limit or 50), 1), 200)
 	search = (search or "").strip()
+	# Fra oversikten: bare bilag som har postert på kontoen i perioden.
+	vouchers = _vouchers_on_account(company, account, from_date, to_date) if account else None
 	rows = []
 	for doctype in doctypes:
 		filters = {"company": company}
+		if from_date and to_date:
+			filters["posting_date"] = ["between", [from_date, to_date]]
 		or_filters = None
 		if search:
 			or_filters = {"name": ["like", f"%{search}%"]}
@@ -82,6 +86,8 @@ def list_documents(company, kind="all", search="", limit=50):
 		):
 			if (doctype, row.name) in settling:
 				continue
+			if vouchers is not None and (doctype, row.name) not in vouchers:
+				continue
 			row.doctype = doctype
 			row.status = _status(doctype, row)
 			row.total = str(flt(row.get("total"), 2))
@@ -92,6 +98,73 @@ def list_documents(company, kind="all", search="", limit=50):
 			rows.append(row)
 	rows.sort(key=lambda row: (row.posting_date or "", row.name), reverse=True)
 	return rows[:limit]
+
+
+def _vouchers_on_account(company, account, from_date=None, to_date=None):
+	if frappe.db.get_value("Account", account, "company") != company:
+		frappe.throw("Kontoen tilhører et annet foretak.")
+	conditions = "company=%(company)s and account=%(account)s and is_cancelled=0"
+	if from_date and to_date:
+		conditions += " and posting_date between %(from_date)s and %(to_date)s"
+	rows = frappe.db.sql(
+		f"select distinct voucher_type, voucher_no from `tabGL Entry` where {conditions}",
+		dict(company=company, account=account, from_date=from_date, to_date=to_date),
+	)
+	return {tuple(row) for row in rows}
+
+
+# Navn på kostnadskontoene slik brukeren kjenner dem fra kjøpsskjemaet.
+EXPENSE_LABELS = (
+	("software_account", "Programvare og abonnementer"),
+	("equipment_account", "Utstyr"),
+	("expense_account", "Annen driftskostnad"),
+	("fees_account", "Bank- og betalingsgebyr"),
+	("depreciation_account", "Avskrivning av utstyr"),
+)
+
+
+@frappe.whitelist()
+def overview(company, year=None):
+	"""Inntekter og kostnader per måned og kostnader per type, fra hovedboken."""
+	settings = get_settings(company)
+	frappe.has_permission("GL Entry", "read", throw=True)
+	year = int(year or getdate(today()).year)
+	rows = frappe.db.sql(
+		"""select month(g.posting_date) month, a.root_type, g.account, a.account_name,
+			sum(g.debit - g.credit) amount
+		from `tabGL Entry` g join `tabAccount` a on a.name = g.account
+		where g.company = %(company)s and g.is_cancelled = 0
+		and g.voucher_type != 'Period Closing Voucher'
+		and a.root_type in ('Income', 'Expense')
+		and g.posting_date between %(start)s and %(end)s
+		group by month(g.posting_date), a.root_type, g.account, a.account_name""",
+		dict(company=company, start=f"{year}-01-01", end=f"{year}-12-31"),
+		as_dict=True,
+	)
+	months = [dict(month=m, income=0.0, expense=0.0) for m in range(1, 13)]
+	categories = {}
+	labels = {settings.get(field): label for field, label in EXPENSE_LABELS if settings.get(field)}
+	for row in rows:
+		amount = flt(row.amount, 2)
+		if row.root_type == "Income":
+			months[row.month - 1]["income"] += -amount
+		else:
+			months[row.month - 1]["expense"] += amount
+			category = categories.setdefault(
+				row.account, dict(account=row.account, label=labels.get(row.account, row.account_name), amount=0.0)
+			)
+			category["amount"] += amount
+	for month in months:
+		month["income"] = flt(month["income"], 2)
+		month["expense"] = flt(month["expense"], 2)
+	return dict(
+		year=year,
+		months=months,
+		categories=sorted(
+			(dict(c, amount=flt(c["amount"], 2)) for c in categories.values() if abs(c["amount"]) >= 0.005),
+			key=lambda c: -c["amount"],
+		),
+	)
 
 
 def _settling_entries(company):

@@ -1069,3 +1069,237 @@
 	margin: 0;
 	padding-left: 18px;
 }
+
+/* Oversikt: inntekter og kostnader. Fargene er validert for fargesvake og mot lys og mørk bakgrunn. */
+.enk-insights {
+	--enk-income: #2a78d6;
+	--enk-expense: #eb6834;
+	padding: 0 28px 20px;
+}
+
+:root[data-theme="dark"] .enk-insights {
+	--enk-income: #3987e5;
+	--enk-expense: #d95926;
+}
+
+.enk-insights:empty {
+	display: none;
+}
+
+.enk-insight-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+	gap: 20px;
+}
+
+.enk-chart-card {
+	padding: 20px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-md, 12px);
+}
+
+.enk-chart-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px 16px;
+}
+
+.enk-chart-card h3 {
+	margin: 0;
+}
+
+.enk-chart-hint {
+	margin: 4px 0 12px;
+}
+
+.enk-legend {
+	display: flex;
+	gap: 14px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--text-muted);
+	font-size: var(--text-sm, 12px);
+}
+
+.enk-swatch {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	margin-right: 6px;
+	border-radius: 2px;
+	vertical-align: -1px;
+}
+
+.enk-swatch.income {
+	background: var(--enk-income);
+}
+
+.enk-swatch.expense {
+	background: var(--enk-expense);
+}
+
+.enk-chart-wrap {
+	position: relative;
+}
+
+.enk-chart {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: visible;
+}
+
+.enk-grid {
+	stroke: var(--border-color);
+	stroke-width: 1;
+}
+
+.enk-grid.base {
+	stroke: var(--text-muted);
+}
+
+.enk-axis {
+	fill: var(--text-muted);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+.enk-bar.income {
+	fill: var(--enk-income);
+}
+
+.enk-bar.expense {
+	fill: var(--enk-expense);
+}
+
+.enk-hit {
+	fill: transparent;
+}
+
+.enk-month {
+	cursor: pointer;
+	outline: none;
+}
+
+.enk-month:hover .enk-hit,
+.enk-month:focus-visible .enk-hit {
+	fill: var(--subtle-fg, var(--control-bg));
+}
+
+.enk-month:focus-visible .enk-hit {
+	stroke: var(--primary);
+	stroke-width: 1.5;
+}
+
+.enk-tooltip {
+	position: absolute;
+	z-index: 2;
+	display: grid;
+	grid-template-columns: auto auto;
+	gap: 2px 12px;
+	padding: 8px 10px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-sm, 8px);
+	background: var(--card-bg, var(--fg-color));
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+	color: var(--text-color);
+	font-size: var(--text-sm, 12px);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+	white-space: nowrap;
+}
+
+.enk-tooltip strong {
+	grid-column: 1 / -1;
+	margin-bottom: 2px;
+}
+
+.enk-tooltip b {
+	font-weight: 600;
+	text-align: right;
+}
+
+.enk-tooltip[hidden] {
+	display: none;
+}
+
+.enk-chart-table {
+	margin-top: 8px;
+	font-size: var(--text-sm, 12px);
+}
+
+.enk-chart-table summary {
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.enk-categories {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.enk-categories button {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 6px 12px;
+	width: 100%;
+	padding: 8px;
+	margin: 0 -8px;
+	border: 0;
+	border-radius: var(--border-radius-sm, 8px);
+	background: none;
+	color: var(--text-color);
+	text-align: left;
+	box-sizing: content-box;
+}
+
+.enk-categories button:hover,
+.enk-categories button:focus-visible {
+	background: var(--subtle-fg, var(--control-bg));
+}
+
+.enk-cat-value {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.enk-cat-track {
+	grid-column: 1 / -1;
+	height: 8px;
+	border-radius: 4px;
+	background: var(--subtle-fg, var(--control-bg));
+}
+
+.enk-cat-bar {
+	display: block;
+	height: 100%;
+	border-radius: 4px;
+	background: var(--enk-expense);
+}
+
+.enk-cat-total {
+	display: flex;
+	justify-content: space-between;
+	margin: 10px 0 0;
+	padding-top: 10px;
+	border-top: 1px solid var(--border-color);
+}
+
+.enk-filter-chip {
+	margin-left: 6px;
+}
+
+@media (max-width: 768px) {
+	.enk-insights {
+		padding: 0 20px 20px;
+	}
+
+	.enk-insight-grid {
+		grid-template-columns: 1fr;
+	}
+
+}

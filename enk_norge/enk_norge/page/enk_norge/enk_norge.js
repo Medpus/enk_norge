@@ -395,6 +395,7 @@ class EnkNorgePage {
 							</div>
 						</section>
 					</div>
+					<section class="enk-insights" aria-label="${__("Inntekter og kostnader")}"></section>
 					${this.document_section()}
 					${this.more_section()}
 				` : `<div class="enk-dashboard-main">${this.dashboard_overview(undefined)}</div>`}
@@ -403,8 +404,165 @@ class EnkNorgePage {
 		this.bind_dashboard(company);
 		if (selected.configured) {
 			this.load_documents(company);
+			if (dashboard && !dashboard.error) this.load_overview(company);
 		}
 	}
+
+	load_overview(company) {
+		const target = this.body.find(".enk-insights");
+		frappe.call({
+			method: "enk_norge.documents.overview",
+			args: { company },
+			callback: (response) => {
+				target.html(this.overview_html(response.message));
+				this.bind_overview(company, response.message);
+			},
+			error: () => target.html(""),
+		});
+	}
+
+	overview_html(data) {
+		const escape = frappe.utils.escape_html;
+		const months = data.months;
+		const names = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"].map((m) => __(m));
+		const total = data.categories.reduce((sum, c) => sum + c.amount, 0);
+		const biggest = Math.max(1, ...data.categories.map((c) => c.amount));
+		const categories = data.categories.length
+			? `<ul class="enk-categories">${data.categories.map((c) => `<li>
+				<button type="button" data-account="${escape(c.account)}" data-label="${escape(c.label)}">
+					<span class="enk-cat-label">${escape(c.label)}</span>
+					<span class="enk-cat-value">${escape(format_nok(c.amount))}</span>
+					<span class="enk-cat-track"><span class="enk-cat-bar" style="width: ${Math.max(2, (c.amount / biggest) * 100)}%"></span></span>
+				</button></li>`).join("")}</ul>
+				<p class="enk-cat-total"><span>${__("Sum kostnader")}</span><strong>${escape(format_nok(total))}</strong></p>`
+			: `<p class="text-muted">${__("Ingen kostnader i år ennå.")}</p>`;
+		const table = `<details class="enk-chart-table"><summary>${__("Vis som tabell")}</summary>
+			<table class="enk-lines"><thead><tr><th>${__("Måned")}</th><th class="text-right">${__("Inntekter")}</th><th class="text-right">${__("Kostnader")}</th><th class="text-right">${__("Resultat")}</th></tr></thead>
+			<tbody>${months.map((m, i) => `<tr><td>${names[i]}</td><td class="text-right" data-label="${__("Inntekter")}">${escape(format_nok(m.income))}</td><td class="text-right" data-label="${__("Kostnader")}">${escape(format_nok(m.expense))}</td><td class="text-right" data-label="${__("Resultat")}">${escape(format_nok(m.income - m.expense))}</td></tr>`).join("")}</tbody></table></details>`;
+		return `<div class="enk-insight-grid">
+			<div class="enk-chart-card">
+				<header class="enk-chart-head">
+					<h3>${__("Inntekter og kostnader {0}", [data.year])}</h3>
+					<ul class="enk-legend"><li><span class="enk-swatch income"></span>${__("Inntekter")}</li><li><span class="enk-swatch expense"></span>${__("Kostnader")}</li></ul>
+				</header>
+				<p class="enk-chart-hint text-muted small">${__("Trykk på en måned for å se bilagene.")}</p>
+				<div class="enk-chart-wrap">
+					<div class="enk-chart-svg"></div>
+					<div class="enk-tooltip" role="status" hidden></div>
+				</div>
+				${table}
+			</div>
+			<div class="enk-chart-card">
+				<h3>${__("Kostnader per type")}</h3>
+				<p class="enk-chart-hint text-muted small">${__("Trykk på en type for å se kjøpene.")}</p>
+				${categories}
+			</div>
+		</div>`;
+	}
+
+	chart_svg(data, W) {
+		// Tegnes i faktisk bredde, så tekst og søyler har riktig størrelse også på mobil.
+		const escape = frappe.utils.escape_html;
+		const months = data.months;
+		const names = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"].map((m) => __(m));
+		const max = Math.max(1, ...months.map((m) => Math.max(m.income, m.expense)));
+		const step = nice_step(max);
+		const top = Math.ceil(max / step) * step;
+		const H = 220, left = 44, right = 4, plot_top = 10, bottom = 26;
+		const plot_h = H - plot_top - bottom;
+		const band = (W - left - right) / 12;
+		const bar = Math.max(3, Math.min(18, (band - 8) / 2));
+		const y = (v) => plot_top + plot_h - (Math.max(0, v) / top) * plot_h;
+		const grid = [0, 1, 2, 3].map((i) => {
+			const value = (top / 3) * i;
+			return `<line x1="${left}" x2="${W - right}" y1="${y(value)}" y2="${y(value)}" class="enk-grid${i === 0 ? " base" : ""}"/>
+				<text x="${left - 6}" y="${y(value) + 4}" class="enk-axis" text-anchor="end">${escape(short_nok(value))}</text>`;
+		}).join("");
+		const column = (m, i) => {
+			const x0 = left + band * i + (band - (bar * 2 + 2)) / 2;
+			const rect = (x, v, cls) => (v > 0 ? `<path class="${cls}" d="${bar_path(x, y(v), bar, y(0) - y(v))}"/>` : "");
+			return `<g class="enk-month" data-month="${m.month}" tabindex="0" role="button"
+					aria-label="${escape(`${names[i]}: ${__("inntekter")} ${format_nok(m.income)}, ${__("kostnader")} ${format_nok(m.expense)}`)}">
+				<rect class="enk-hit" x="${left + band * i}" y="${plot_top}" width="${band}" height="${plot_h + bottom}"/>
+				${rect(x0, m.income, "enk-bar income")}${rect(x0 + bar + 2, m.expense, "enk-bar expense")}
+				<text x="${left + band * i + band / 2}" y="${H - 8}" class="enk-axis" text-anchor="middle">${band < 26 ? names[i].charAt(0) : names[i]}</text>
+			</g>`;
+		};
+		return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="enk-chart" role="img" aria-label="${__("Inntekter og kostnader per måned")}">${grid}${months.map(column).join("")}</svg>`;
+	}
+
+	draw_chart(company, data) {
+		const holder = this.body.find(".enk-chart-svg");
+		if (!holder.length) return;
+		holder.html(this.chart_svg(data, Math.max(260, Math.floor(holder[0].clientWidth))));
+		this.bind_months(company, data);
+	}
+
+	bind_overview(company, data) {
+		this.draw_chart(company, data);
+		if (!this.chart_resize_bound) {
+			this.chart_resize_bound = true;
+			let timer;
+			$(window).on("resize", () => {
+				clearTimeout(timer);
+				timer = setTimeout(() => this.overview_data && this.draw_chart(this.overview_company, this.overview_data), 150);
+			});
+		}
+		this.overview_data = data;
+		this.overview_company = company;
+		this.body.find(".enk-categories [data-account]").on("click", (event) => {
+			const target = $(event.currentTarget);
+			this.list_state.filter = { account: target.attr("data-account"), label: target.attr("data-label") };
+			this.apply_overview_filter(company);
+		});
+	}
+
+	bind_months(company, data) {
+		const names = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"].map((m) => __(m));
+		const wrap = this.body.find(".enk-chart-wrap");
+		const tip = wrap.find(".enk-tooltip");
+		const show = (el) => {
+			const month = data.months[Number($(el).attr("data-month")) - 1];
+			const box = el.getBoundingClientRect();
+			const outer = wrap[0].getBoundingClientRect();
+			tip.html(`<strong>${names[month.month - 1]} ${data.year}</strong>
+				<span><i class="enk-swatch income"></i>${__("Inntekter")}</span><b>${frappe.utils.escape_html(format_nok(month.income))}</b>
+				<span><i class="enk-swatch expense"></i>${__("Kostnader")}</span><b>${frappe.utils.escape_html(format_nok(month.expense))}</b>
+				<span>${__("Resultat")}</span><b>${frappe.utils.escape_html(format_nok(month.income - month.expense))}</b>`);
+			tip.prop("hidden", false);
+			const left = Math.min(Math.max(0, box.left - outer.left + box.width / 2 - tip.outerWidth() / 2), outer.width - tip.outerWidth());
+			tip.css({ left: `${left}px`, top: "0px" });
+		};
+		const pick_month = (el) => {
+			const month = Number($(el).attr("data-month"));
+			const last = new Date(data.year, month, 0).getDate();
+			const pad = (n) => String(n).padStart(2, "0");
+			this.list_state.filter = {
+				from_date: `${data.year}-${pad(month)}-01`,
+				to_date: `${data.year}-${pad(month)}-${pad(last)}`,
+				label: `${names[month - 1]} ${data.year}`,
+			};
+			this.apply_overview_filter(company);
+		};
+		this.body.find(".enk-month")
+			.on("mouseenter focus", (event) => show(event.currentTarget))
+			.on("mouseleave blur", () => tip.prop("hidden", true))
+			.on("click", (event) => pick_month(event.currentTarget))
+			.on("keydown", (event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					pick_month(event.currentTarget);
+				}
+			});
+	}
+
+	apply_overview_filter(company) {
+		this.list_state.kind = "all";
+		this.list_state.status = "";
+		this.load_documents(company);
+		this.body.find(".enk-documents")[0]?.scrollIntoView({ behavior: "smooth", block: "start" });
+	}
+
 
 	company_status(selected, dashboard) {
 		if (!selected.configured) return __("Foretaket trenger fortsatt norsk oppsett.");
@@ -488,9 +646,20 @@ class EnkNorgePage {
 			const active = $(el).attr("data-list-status") === state.status;
 			$(el).toggleClass("btn-primary", active).toggleClass("btn-default", !active).attr("aria-pressed", active);
 		});
+		const filter = state.filter || {};
+		this.body.find(".enk-filter-chip").remove();
+		if (filter.label) {
+			const chip = $(`<button type="button" class="btn btn-xs btn-default enk-filter-chip" aria-label="${__("Fjern filteret {0}", [frappe.utils.escape_html(filter.label)])}">
+				${frappe.utils.escape_html(filter.label)} ${frappe.utils.icon("close", "xs")}</button>`);
+			chip.on("click", () => {
+				state.filter = null;
+				this.load_documents(company);
+			});
+			this.body.find(".enk-document-filters").append(chip);
+		}
 		frappe.call({
 			method: "enk_norge.documents.list_documents",
-			args: { company, kind: state.kind, search: state.search, limit: 100 },
+			args: { company, kind: state.kind, search: state.search, limit: 100, from_date: filter.from_date, to_date: filter.to_date, account: filter.account },
 			callback: (response) => {
 				const rows = (response.message || []).filter((row) => !state.status || row.status === state.status);
 				table.html(this.document_rows(rows));
@@ -506,7 +675,7 @@ class EnkNorgePage {
 
 	document_rows(rows) {
 		if (!rows.length) {
-			const filtered = this.list_state.search || this.list_state.status || this.list_state.kind !== "all";
+			const filtered = this.list_state.search || this.list_state.status || this.list_state.kind !== "all" || this.list_state.filter;
 			return `<div class="enk-empty">
 				<p>${filtered ? __("Ingen bilag passer med filteret.") : __("Ingen bilag ennå. Start med en faktura eller et kjøp.")}</p>
 			</div>`;
@@ -2094,6 +2263,25 @@ class EnkNorgePage {
 			},
 		});
 	}
+}
+
+function nice_step(max) {
+	// Tre rette gridlinjer med runde tall.
+	const raw = max / 3;
+	const power = 10 ** Math.floor(Math.log10(raw));
+	return [1, 2, 2.5, 5, 10].map((n) => n * power).find((n) => n >= raw);
+}
+
+function short_nok(value) {
+	if (value >= 1000000) return `${(value / 1000000).toLocaleString("nb-NO", { maximumFractionDigits: 1 })} mill`;
+	if (value >= 1000) return `${(value / 1000).toLocaleString("nb-NO", { maximumFractionDigits: 1 })} k`;
+	return value.toLocaleString("nb-NO");
+}
+
+function bar_path(x, y, width, height) {
+	// Avrundet topp, rett mot grunnlinjen.
+	const r = Math.min(4, width / 2, height);
+	return `M${x},${y + height}V${y + r}Q${x},${y} ${x + r},${y}H${x + width - r}Q${x + width},${y} ${x + width},${y + r}V${y + height}Z`;
 }
 
 function last_payment_method() {

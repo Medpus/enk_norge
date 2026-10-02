@@ -391,3 +391,26 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertEqual(len(documents.list_documents(self.company, "other")), 2)
 		with self.assertRaises(frappe.ValidationError):
 			create_purchase(base | dict(bill_no="OAI-USD", payment_method="Private", currency="USD", conversion_rate="10.5", exchange_rate_source="Norges Bank", exchange_rate_date="2026-09-17"))
+
+	def test_overview_by_month_and_cost_type_filters_documents(self):
+		from enk_norge.setup import get_settings
+
+		settings = get_settings(self.company)
+		customer = self.customer()
+		sale = create_sale(
+			dict(company=self.company, customer=customer["customer"], customer_address=customer["customer_address"], posting_date="2026-09-17", delivery_date="2026-09-17", due_date="2026-10-01", items=[dict(description="Konsulentbistand", quantity="10", unit_price="1000")])
+		)
+		documents.submit_document(sale["doctype"], sale["name"])
+		supplier = parties.create_supplier(dict(supplier_name="Fiktiv AI " + uuid4().hex[:6], country="United States"))
+		purchase = create_purchase(
+			dict(company=self.company, supplier=supplier["supplier"], posting_date="2026-08-10", bill_date="2026-08-10", bill_no="AI-8", description="AI", category="software", gross_amount="990.25", vat_rate="0", foreign_service=1, payment_method="Private")
+		)
+		self.attach(purchase["doctype"], purchase["name"])
+		documents.submit_document(purchase["doctype"], purchase["name"])
+		data = documents.overview(self.company, 2026)
+		self.assertEqual((data["months"][8]["income"], data["months"][7]["expense"]), (10000.0, 990.25))
+		self.assertEqual([(c["label"], c["amount"]) for c in data["categories"]], [("Programvare og abonnementer", 990.25)])
+		august = documents.list_documents(self.company, "all", from_date="2026-08-01", to_date="2026-08-31")
+		self.assertEqual([row.name for row in august], [purchase["name"]])
+		software = documents.list_documents(self.company, "all", account=settings.software_account)
+		self.assertEqual([row.name for row in software], [purchase["name"]])
