@@ -30,7 +30,15 @@ regnskapet. Under står det om noe venter, for eksempel kladder som ikke er bokf
 fakturaer som ikke er betalt. Et klikk der filtrerer bilagslisten.
 
 «Ny registrering» har de vanlige handlingene: ny faktura, nytt kjøp, føre timer, fakturere
-timer, ny kunde og ny leverandør.
+timer, ny kunde og ny leverandør. Tallene i «Status i år» kan trykkes på og viser bilagene de
+består av. Er foretaket ikke MVA-registrert, viser oversikten omsetningen siste 12 måneder mot
+grensen på 50 000 kr. Under kortene viser et diagram inntekter og kostnader per måned og en
+liste kostnadene per type. Et trykk på en måned eller en type filtrerer bilagslisten.
+
+«Kunder og leverandører» i menyen viser alle kunder og leverandører. Der retter du navn,
+adresse, organisasjonsnummer, e-post og land. Endringene gjelder nye bilag. Bokførte fakturaer
+beholder opplysningene de ble sendt med. Under «Foretak og MVA» retter du foretakets adresse,
+telefon og e-post.
 
 «Bilag» er listen over alt som er registrert. Du kan søke på nummer, kunde eller leverandør
 og filtrere på salg, kjøp, kladder og ubetalte fakturaer. Et klikk åpner bilaget.
@@ -55,6 +63,9 @@ automatisk når kunden er valgt.
 
 Legg inn én linje per vare eller tjeneste: beskrivelse, antall og pris. «Legg til linje» gir
 flere linjer, for eksempel en linje per modul. Summen vises mens du skriver.
+
+Har kunden bedt om en referanse, for eksempel et bestillingsnummer, skriver du den i «Kundens
+referanse». Den står på fakturaen som «Deres ref.».
 
 Prisen er uten MVA. Er foretaket ikke MVA-registrert, er prisen det kunden betaler, og
 fakturaen nevner ikke MVA. Er foretaket registrert, legges 25 % MVA til, og fakturaen viser

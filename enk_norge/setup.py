@@ -223,8 +223,30 @@ def company_profile(company):
 		bank_account=settings.bank_account,
 		vat_registered=bool(settings.vat_registered),
 		vat_registration_date=str(settings.vat_registration_date) if settings.vat_registration_date else None,
+		email=frappe.db.get_value("Company", company, "email"),
 		has_postings=bool(frappe.db.exists("GL Entry", {"company": company})),
 	)
+
+
+@frappe.whitelist(methods=["POST"])
+def update_company_contact(company, data):
+	"""Adresse, telefon og e-post kan endres. Bokførte fakturaer beholder opplysningene de ble utstedt med."""
+	data = frappe._dict(frappe.parse_json(data) if isinstance(data, str) else data)
+	settings = get_settings(company, write=True)
+	for field in ("address_line", "postal_code", "city", "phone"):
+		value = (data.get(field) or "").strip()
+		if not value:
+			frappe.throw("Fyll ut adresse, postnummer, poststed og telefon.")
+		settings.set(field, value)
+	settings.save()
+	email = (data.get("email") or "").strip()
+	if email:
+		from frappe.utils import validate_email_address
+
+		validate_email_address(email, throw=True)
+	frappe.get_doc("Company", company).check_permission("write")
+	frappe.db.set_value("Company", company, "email", email or None)
+	return company_profile(company)
 
 
 @frappe.whitelist(methods=["POST"])

@@ -197,6 +197,7 @@ def create_sale(data):
 			enk_request_fingerprint=_fingerprint(data) if data.external_id else None,
 			enk_delivery_date=data.delivery_date,
 			enk_delivery_description=delivery_description,
+			po_no=(data.get("customer_reference") or "").strip()[:140] or None,
 			items=[
 				dict(
 					item_name=line["description"][:140],

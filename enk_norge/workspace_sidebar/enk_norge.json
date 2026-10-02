@@ -17,6 +17,14 @@
    "link_type": "Page",
    "route_options": "{\"vis\": \"mva\"}",
    "type": "Link"
+  },
+  {
+   "icon": "users",
+   "label": "Kunder og leverandører",
+   "link_to": "enk-norge",
+   "link_type": "Page",
+   "route_options": "{\"vis\": \"kontakter\"}",
+   "type": "Link"
   }
  ],
  "module": "ENK Norge",

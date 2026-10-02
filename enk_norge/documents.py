@@ -317,6 +317,7 @@ def _edit_values(doc):
 			due_date=str(doc.due_date) if doc.due_date else None,
 			tax_treatment="" if doc.enk_tax_treatment in ("Not registered", "Domestic 25") else doc.enk_tax_treatment,
 			tax_reason=doc.enk_tax_reason,
+			customer_reference=doc.get("po_no"),
 			items=[
 				dict(description=row.description, quantity=str(flt(row.qty)), unit_price=str(flt(row.rate, 2)))
 				for row in doc.items

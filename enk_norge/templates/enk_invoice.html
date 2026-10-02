@@ -2,6 +2,7 @@
 {% set buyer = enk_invoice_buyer(doc) %}
 {% set registered = issuer.vat_registered %}
 {% set seller = issuer.company_name or doc.company %}
+{% set seller_email = frappe.db.get_value('Company', doc.company, 'email') %}
 {% set org = enk_format_number(issuer.organization_number, 'org') %}
 {% set account = enk_format_number(issuer.bank_account, 'account') %}
 {% set lines_text = doc.items | map(attribute='description') | join('\n') %}
@@ -70,6 +71,7 @@
           {% if not doc.is_return %}<tr><td class="lbl">Forfallsdato</td><td class="val">{{ frappe.utils.formatdate(doc.due_date, 'dd.MM.yyyy') }}</td></tr>{% endif %}
           <tr><td class="lbl">Leveringsdato</td><td class="val">{{ frappe.utils.formatdate(doc.enk_delivery_date, 'dd.MM.yyyy') }}</td></tr>
           {% if doc.return_against %}<tr><td class="lbl">Gjelder faktura</td><td class="val">{{ doc.return_against | e }}</td></tr>{% endif %}
+          {% if doc.po_no %}<tr><td class="lbl">Deres ref.</td><td class="val">{{ doc.po_no | e }}</td></tr>{% endif %}
         </table>
       </td>
     </tr>
@@ -138,7 +140,7 @@
       <tr>
         <td><strong>{{ seller | e }}</strong><br>Org.nr. {{ org | e }}{% if registered %} MVA{% endif %}</td>
         <td>{{ issuer.address_line | e }}<br>{{ issuer.postal_code | e }} {{ issuer.city | e }}</td>
-        <td>{% if issuer.phone %}Telefon {{ enk_format_number(issuer.phone, 'phone') | e }}{% endif %}</td>
+        <td>{% if issuer.phone %}Telefon {{ enk_format_number(issuer.phone, 'phone') | e }}{% endif %}{% if seller_email %}<br>{{ seller_email | e }}{% endif %}</td>
       </tr>
     </table>
   </div>

@@ -110,6 +110,83 @@ def create_supplier(data):
 
 
 @frappe.whitelist()
+def list_parties():
+	customers = []
+	for row in frappe.get_list(
+		"Customer",
+		filters={"disabled": 0},
+		fields=["name", "customer_name", "customer_type", "tax_id", "email_id"],
+		order_by="customer_name asc",
+		limit_page_length=500,
+	):
+		address = billing_address(row.name)
+		row.update(
+			address_line=address.address_line1 if address else "",
+			postal_code=address.pincode if address else "",
+			city=address.city if address else "",
+			country=address.country if address else "Norway",
+		)
+		customers.append(row)
+	suppliers = frappe.get_list(
+		"Supplier",
+		filters={"disabled": 0},
+		fields=["name", "supplier_name", "country", "tax_id"],
+		order_by="supplier_name asc",
+		limit_page_length=500,
+	)
+	return dict(customers=customers, suppliers=suppliers)
+
+
+@frappe.whitelist(methods=["POST"])
+def update_customer(customer, data):
+	"""Ny adresse gjelder nye fakturaer. Bokførte fakturaer beholder adressen de ble utstedt med."""
+	data = _data(data)
+	doc = frappe.get_doc("Customer", customer)
+	doc.check_permission("write")
+	country = _country(data.country)
+	doc.customer_name = _clean(data.customer_name, "kundens navn")
+	doc.customer_type = _party_type(data.customer_type or doc.customer_type)
+	doc.tax_id = _org_number(data.organization_number, country) or None
+	doc.email_id = (data.email or "").strip() or None
+	doc.save()
+	postal_code = _clean(data.postal_code, "postnummer", required=country == "Norway", limit=20)
+	if country == "Norway" and not re.fullmatch(r"\d{4}", postal_code):
+		frappe.throw("Postnummeret må ha fire siffer.")
+	address = billing_address(customer)
+	values = dict(
+		address_line1=_clean(data.address_line, "fakturaadresse"),
+		pincode=postal_code or None,
+		city=_clean(data.city, "poststed"),
+		country=country,
+		email_id=doc.email_id,
+	)
+	if address:
+		address_doc = frappe.get_doc("Address", address.name)
+		address_doc.check_permission("write")
+		address_doc.update(values)
+		address_doc.save()
+	else:
+		frappe.get_doc(
+			dict(doctype="Address", address_title=doc.customer_name, address_type="Billing", is_primary_address=1,
+				links=[dict(link_doctype="Customer", link_name=customer)], **values)
+		).insert()
+	return dict(customer=customer)
+
+
+@frappe.whitelist(methods=["POST"])
+def update_supplier(supplier, data):
+	data = _data(data)
+	doc = frappe.get_doc("Supplier", supplier)
+	doc.check_permission("write")
+	country = _country(data.country)
+	doc.supplier_name = _clean(data.supplier_name, "leverandørens navn")
+	doc.country = country
+	doc.tax_id = _org_number(data.organization_number, country) or None
+	doc.save()
+	return dict(supplier=supplier)
+
+
+@frappe.whitelist()
 def billing_address(customer):
 	frappe.get_doc("Customer", customer).check_permission("read")
 	rows = frappe.get_all(

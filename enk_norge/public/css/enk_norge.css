@@ -1364,3 +1364,38 @@
 .enk-todo .enk-todo-urgent {
 	color: var(--red-600, #c4320a);
 }
+
+.enk-parties h2 {
+	margin-bottom: 4px;
+}
+
+.enk-party-group {
+	margin-top: 24px;
+}
+
+.enk-party-group header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.enk-party-group h3 {
+	margin: 0;
+}
+
+.enk-party-rows {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.enk-party-rows li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 52px;
+	padding: 8px 0;
+	border-bottom: 1px solid var(--border-color);
+}

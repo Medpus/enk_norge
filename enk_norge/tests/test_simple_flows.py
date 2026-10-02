@@ -428,3 +428,22 @@ class SimpleFlowsTest(unittest.TestCase):
 		data = dashboard(self.company)
 		self.assertEqual([row.name for row in data["overdue_sales"]], [late["name"]])
 		self.assertEqual((float(data["vat_rolling"]["basis"]), float(data["vat_rolling"]["threshold"])), (12000.0, 50000.0))
+
+	def test_customer_supplier_and_company_contact_can_be_corrected(self):
+		from enk_norge.setup import company_profile, update_company_contact
+
+		customer = self.customer()
+		parties.update_customer(customer["customer"], dict(customer_name="Nytt navn AS", customer_type="Company", organization_number="974761076", email="faktura@example.invalid", address_line="Ny gate 2", postal_code="0151", city="Oslo", country="Norway"))
+		listed = {row.name: row for row in parties.list_parties()["customers"]}[customer["customer"]]
+		self.assertEqual((listed.customer_name, listed.address_line, listed.postal_code), ("Nytt navn AS", "Ny gate 2", "0151"))
+		supplier = parties.create_supplier(dict(supplier_name="Fiktiv leverandør " + uuid4().hex[:6]))
+		parties.update_supplier(supplier["supplier"], dict(supplier_name="OpenAI", country="United States"))
+		self.assertEqual(frappe.db.get_value("Supplier", supplier["supplier"], "country"), "United States")
+		profile = update_company_contact(self.company, dict(address_line="Kontorveien 3", postal_code="0150", city="Oslo", phone="40000000", email="post@example.invalid"))
+		self.assertEqual((profile["address_line"], profile["email"]), ("Kontorveien 3", "post@example.invalid"))
+		self.assertEqual(company_profile(self.company)["phone"], "40000000")
+		sale = create_sale(dict(company=self.company, customer=customer["customer"], customer_address=listed.name and parties.billing_address(customer["customer"]).name, delivery_date="2026-09-17", posting_date="2026-09-17", due_date="2026-12-31", customer_reference="PO-4711", items=[dict(description="Arbeid", quantity="1", unit_price="100")]))
+		self.assertEqual(documents.get_document(sale["doctype"], sale["name"])["edit"]["customer_reference"], "PO-4711")
+		html = frappe.get_print("Sales Invoice", sale["name"], print_format="ENK Faktura")
+		self.assertIn("PO-4711", html)
+		self.assertIn("post@example.invalid", html)

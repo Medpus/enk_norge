@@ -23,7 +23,8 @@ function use_enk_sidebar(wrapper) {
 		if (frappe.container?.page !== wrapper || !sidebar || !frappe.boot.workspace_sidebar_item?.["enk norge"]) return;
 		if (sidebar.sidebar_title !== "ENK Norge") sidebar.setup("ENK Norge");
 		// Begge menypunktene peker på samme side, så Frappe kan ikke se hvilket som er aktivt.
-		const active = frappe.get_route()[1] === "mva" ? "MVA" : "Oversikt";
+		const view = frappe.get_route()[1];
+		const active = view === "mva" ? "MVA" : view === "kontakter" ? "Kunder og leverandører" : "Oversikt";
 		$(".body-sidebar .standard-sidebar-item").each((_, item) => {
 			$(item).toggleClass("active-sidebar", $(item).text().trim() === active);
 		});
@@ -61,10 +62,10 @@ class EnkNorgePage {
 		if (!this.loaded) return;
 		// Sidemenyen kan bare lenke til selve siden, så MVA-lenken sender vis=mva som parameter.
 		const target = frappe.route_options?.vis || frappe.utils.get_query_params().vis;
-		if (target === "mva") {
+		if (["mva", "kontakter"].includes(target)) {
 			// Erstatt historikken, ellers sender Tilbake-knappen brukeren hit igjen.
 			frappe.route_options = null;
-			window.history.replaceState(null, "", "/desk/enk-norge/mva");
+			window.history.replaceState(null, "", `/desk/enk-norge/${target}`);
 			frappe.router.route();
 			return;
 		}
@@ -75,6 +76,8 @@ class EnkNorgePage {
 			this.render_document(doctype, name);
 		} else if (view === "mva") {
 			this.render_vat(doctype);
+		} else if (view === "kontakter") {
+			this.render_parties();
 		} else {
 			this.render_dashboard();
 		}
@@ -980,6 +983,48 @@ class EnkNorgePage {
 		});
 	}
 
+	async render_parties() {
+		this.page.clear_actions();
+		this.page.set_title(__("Kunder og leverandører"));
+		const escape = frappe.utils.escape_html;
+		const data = (await frappe.call({ method: "enk_norge.parties.list_parties" })).message;
+		const customer_rows = data.customers.map((c) => `<li>
+			<span class="enk-row-main"><span class="enk-row-party">${escape(c.customer_name)}</span>
+			<span class="enk-row-meta">${escape([c.address_line, [c.postal_code, c.city].filter(Boolean).join(" "), c.country !== "Norway" ? c.country : "", c.tax_id ? `${__("Org.nr.")} ${c.tax_id}` : "", c.email_id].filter(Boolean).join(" · "))}</span></span>
+			<button type="button" class="btn btn-default btn-xs" data-edit-customer="${escape(c.name)}">${__("Rediger")}</button></li>`).join("");
+		const supplier_rows = data.suppliers.map((v) => `<li>
+			<span class="enk-row-main"><span class="enk-row-party">${escape(v.supplier_name)}</span>
+			<span class="enk-row-meta">${escape([__(v.country || "Norway"), v.tax_id ? `${__("Org.nr.")} ${v.tax_id}` : ""].filter(Boolean).join(" · "))}</span></span>
+			<button type="button" class="btn btn-default btn-xs" data-edit-supplier="${escape(v.name)}">${__("Rediger")}</button></li>`).join("");
+		this.body.html(`<section class="enk-bilag enk-parties" aria-labelledby="enk-parties-title">
+			<button class="btn btn-link enk-back" type="button" data-action="back">${frappe.utils.icon("arrow-left", "sm")} ${__("Oversikt")}</button>
+			<h2 id="enk-parties-title">${__("Kunder og leverandører")}</h2>
+			<section class="enk-party-group">
+				<header><h3>${__("Kunder")}</h3><button type="button" class="btn btn-default btn-sm" data-action="new-customer">${__("Ny kunde")}</button></header>
+				${customer_rows ? `<ul class="enk-party-rows">${customer_rows}</ul>` : `<p class="text-muted">${__("Ingen kunder ennå.")}</p>`}
+			</section>
+			<section class="enk-party-group">
+				<header><h3>${__("Leverandører")}</h3><button type="button" class="btn btn-default btn-sm" data-action="new-supplier">${__("Ny leverandør")}</button></header>
+				${supplier_rows ? `<ul class="enk-party-rows">${supplier_rows}</ul>` : `<p class="text-muted">${__("Ingen leverandører ennå.")}</p>`}
+			</section>
+		</section>`);
+		const refresh = () => this.render_parties();
+		this.body.find('[data-action="back"]').on("click", () => frappe.set_route("enk-norge"));
+		this.body.find('[data-action="new-customer"]').on("click", () => this.open_customer_dialog(refresh));
+		this.body.find('[data-action="new-supplier"]').on("click", () => this.open_supplier_dialog(refresh));
+		this.body.find("[data-edit-customer]").on("click", (event) => {
+			const c = data.customers.find((row) => row.name === $(event.currentTarget).attr("data-edit-customer"));
+			this.open_customer_dialog(refresh, {
+				name: c.name, customer_name: c.customer_name, customer_type: c.customer_type, organization_number: c.tax_id,
+				email: c.email_id, address_line: c.address_line, postal_code: c.postal_code, city: c.city, country: c.country,
+			});
+		});
+		this.body.find("[data-edit-supplier]").on("click", (event) => {
+			const v = data.suppliers.find((row) => row.name === $(event.currentTarget).attr("data-edit-supplier"));
+			this.open_supplier_dialog(refresh, { name: v.name, supplier_name: v.supplier_name, country: v.country || "Norway", organization_number: v.tax_id });
+		});
+	}
+
 	render_document(doctype, name) {
 		this.page.clear_actions();
 		this.page.set_title(__("Bilag"));
@@ -1271,7 +1316,13 @@ class EnkNorgePage {
 		const dialog = new frappe.ui.Dialog({
 			title: __("Foretak og MVA"),
 			fields: [
-				{ fieldtype: "HTML", options: `<dl class="enk-facts">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(value || "")}</dd></div>`).join("")}</dl>` },
+				{ fieldtype: "HTML", options: `<dl class="enk-facts">${facts.filter(([label]) => ![__("Adresse"), __("Telefon")].includes(label)).map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(value || "")}</dd></div>`).join("")}</dl>` },
+				{ fieldtype: "Section Break", label: __("Kontaktinformasjon på fakturaen") },
+				{ fieldname: "address_line", label: __("Adresse"), fieldtype: "Data", default: profile.address_line, reqd: 1 },
+				{ fieldname: "postal_code", label: __("Postnummer"), fieldtype: "Data", default: profile.postal_code, reqd: 1 },
+				{ fieldname: "city", label: __("Poststed"), fieldtype: "Data", default: profile.city, reqd: 1 },
+				{ fieldname: "phone", label: __("Telefon"), fieldtype: "Data", default: profile.phone, reqd: 1 },
+				{ fieldname: "email", label: __("E-post"), fieldtype: "Data", options: "Email", default: profile.email },
 				{ fieldtype: "Section Break", label: __("MVA-registrering") },
 				{
 					fieldtype: "HTML",
@@ -1282,10 +1333,17 @@ class EnkNorgePage {
 				{ fieldname: "vat_registered", label: __("Foretaket er MVA-registrert"), fieldtype: "Check", default: profile.vat_registered ? 1 : 0, read_only: locked ? 1 : 0 },
 				{ fieldname: "vat_registration_date", label: __("Registrert fra"), fieldtype: "Date", default: profile.vat_registration_date, depends_on: "eval:doc.vat_registered", read_only: locked ? 1 : 0 },
 			],
-			primary_action_label: locked ? __("Lukk") : __("Lagre"),
-			primary_action: (values) => {
+			primary_action_label: __("Lagre"),
+			primary_action: async (values) => {
+				await frappe.call({
+					method: "enk_norge.setup.update_company_contact",
+					args: { company, data: { address_line: values.address_line, postal_code: values.postal_code, city: values.city, phone: values.phone, email: values.email } },
+					btn: dialog.get_primary_btn(),
+				});
 				if (locked) {
 					dialog.hide();
+					frappe.show_alert({ message: __("Opplysningene er lagret."), indicator: "green" });
+					this.render_dashboard();
 					return;
 				}
 				if (values.vat_registered && !values.vat_registration_date) {
@@ -1317,6 +1375,7 @@ class EnkNorgePage {
 				{ fieldname: "delivery_date", label: __("Leveringsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
 				{ fieldtype: "Column Break" },
 				{ fieldname: "due_date", label: __("Forfallsdato"), fieldtype: "Date", reqd: 1, default: frappe.datetime.add_days(frappe.datetime.get_today(), 14) },
+				{ fieldname: "customer_reference", label: __("Kundens referanse"), fieldtype: "Data", description: __("Valgfritt. Bestillingsnummer eller kontaktperson hos kunden, hvis de har bedt om det.") },
 				{ fieldtype: "Section Break", label: __("Utenlandsk kunde, unntak eller abonnement"), collapsible: 1 },
 				...this.sale_tax_fields(),
 				{
@@ -1463,10 +1522,10 @@ class EnkNorgePage {
 		display.$wrapper.html(`<p class="text-muted small enk-address">${lines.map(frappe.utils.escape_html).join(", ")}</p>`);
 	}
 
-	open_customer_dialog(on_created) {
+	open_customer_dialog(on_created, edit = null) {
 		const dialog = new frappe.ui.Dialog({
-			title: __("Ny kunde"),
-			fields: [
+			title: edit ? __("Rediger kunde") : __("Ny kunde"),
+			fields: this.with_defaults(edit, [
 				{ fieldname: "customer_name", label: __("Navn"), fieldtype: "Data", reqd: 1 },
 				{ fieldname: "customer_type", label: __("Type"), fieldtype: "Select", options: [{ label: __("Bedrift"), value: "Company" }, { label: __("Privatperson"), value: "Individual" }], default: "Company", reqd: 1 },
 				{ fieldname: "organization_number", label: __("Organisasjonsnummer"), fieldtype: "Data", depends_on: "eval:doc.customer_type=='Company'" },
@@ -1476,15 +1535,16 @@ class EnkNorgePage {
 				{ fieldname: "postal_code", label: __("Postnummer"), fieldtype: "Data" },
 				{ fieldname: "city", label: __("Poststed"), fieldtype: "Data", reqd: 1 },
 				{ fieldname: "country", label: __("Land"), fieldtype: "Link", options: "Country", default: "Norway", reqd: 1 },
-			],
-			primary_action_label: __("Opprett kunde"),
+				...(edit ? [{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Endringene gjelder nye fakturaer. Fakturaer som er bokført, beholder opplysningene de ble sendt med.")}</p>` }] : []),
+			]),
+			primary_action_label: edit ? __("Lagre endringer") : __("Opprett kunde"),
 			primary_action: (values) => frappe.call({
-				method: "enk_norge.parties.create_customer",
-				args: { data: values },
+				method: edit ? "enk_norge.parties.update_customer" : "enk_norge.parties.create_customer",
+				args: edit ? { customer: edit.name, data: values } : { data: values },
 				btn: dialog.get_primary_btn(),
 				callback: (response) => {
 					dialog.hide();
-					frappe.show_alert({ message: __("{0} er opprettet.", [response.message.customer_name]), indicator: "green" });
+					frappe.show_alert({ message: edit ? __("Kunden er oppdatert.") : __("{0} er opprettet.", [response.message.customer_name]), indicator: "green" });
 					on_created?.(response.message);
 				},
 			}),
@@ -1529,22 +1589,22 @@ class EnkNorgePage {
 		}
 	}
 
-	open_supplier_dialog(on_created) {
+	open_supplier_dialog(on_created, edit = null) {
 		const dialog = new frappe.ui.Dialog({
-			title: __("Ny leverandør"),
-			fields: [
+			title: edit ? __("Rediger leverandør") : __("Ny leverandør"),
+			fields: this.with_defaults(edit, [
 				{ fieldname: "supplier_name", label: __("Navn"), fieldtype: "Data", reqd: 1, description: __("For eksempel OpenAI, Apple eller Telenor.") },
 				{ fieldname: "country", label: __("Land"), fieldtype: "Link", options: "Country", default: "Norway", reqd: 1, description: __("Landet leverandøren fakturerer fra. Avgjør om MVA skal beregnes som kjøp fra utlandet.") },
 				{ fieldname: "organization_number", label: __("Organisasjonsnummer"), fieldtype: "Data", depends_on: "eval:doc.country=='Norway'" },
-			],
-			primary_action_label: __("Opprett leverandør"),
+			]),
+			primary_action_label: edit ? __("Lagre endringer") : __("Opprett leverandør"),
 			primary_action: (values) => frappe.call({
-				method: "enk_norge.parties.create_supplier",
-				args: { data: { ...values, supplier_type: "Company" } },
+				method: edit ? "enk_norge.parties.update_supplier" : "enk_norge.parties.create_supplier",
+				args: edit ? { supplier: edit.name, data: values } : { data: { ...values, supplier_type: "Company" } },
 				btn: dialog.get_primary_btn(),
 				callback: (response) => {
 					dialog.hide();
-					frappe.show_alert({ message: __("{0} er opprettet.", [response.message.supplier_name]), indicator: "green" });
+					frappe.show_alert({ message: edit ? __("Leverandøren er oppdatert.") : __("{0} er opprettet.", [response.message.supplier_name]), indicator: "green" });
 					on_created?.(response.message);
 				},
 			}),
