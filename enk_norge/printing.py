@@ -145,10 +145,15 @@ def enk_invoice_buyer(doc):
 
 
 def enk_format_number(value, kind):
-	"""Norsk visning av kontonummer (1234.56.78901) og organisasjonsnummer (123 456 789)."""
+	"""Norsk visning av kontonummer (1234.56.78901), organisasjonsnummer (123 456 789) og telefon (400 00 000)."""
 	digits = "".join(ch for ch in str(value or "") if ch.isdigit())
 	if kind == "account" and len(digits) == 11:
 		return f"{digits[:4]}.{digits[4:6]}.{digits[6:]}"
 	if kind == "org" and len(digits) == 9:
 		return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
+	if kind == "phone":
+		local = digits[2:] if len(digits) == 10 and digits.startswith("47") else digits
+		if len(local) == 8:
+			prefix = "+47 " if len(digits) == 10 else ""
+			return f"{prefix}{local[:3]} {local[3:5]} {local[5:]}"
 	return value or ""
