@@ -9,3 +9,4 @@ enk_norge.patches.quiet_desk_for_enk_sites
 enk_norge.patches.give_enk_owners_party_roles
 enk_norge.patches.use_plain_invoice_numbers
 enk_norge.patches.use_norwegian_date_format
+enk_norge.patches.disable_invoice_rounding

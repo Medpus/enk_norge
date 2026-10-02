@@ -357,8 +357,9 @@ class SimpleFlowsTest(unittest.TestCase):
 			category="expense",
 			gross_amount="300",
 		)
-		purchase = create_purchase(purchase_args)
+		purchase = create_purchase(purchase_args | dict(gross_amount="990.25"))
+		self.assertEqual(frappe.get_doc("Purchase Invoice", purchase["name"]).outstanding_amount, 990.25)
 		values = documents.get_document(purchase["doctype"], purchase["name"])["edit"]
-		self.assertEqual((values["gross_amount"], values["category"]), (300.0, "expense"))
+		self.assertEqual((values["gross_amount"], values["category"]), (990.25, "expense"))
 		create_purchase(purchase_args | dict(draft=purchase["name"], gross_amount="450"))
 		self.assertEqual(frappe.get_doc("Purchase Invoice", purchase["name"]).grand_total, 450)

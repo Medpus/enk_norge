@@ -173,6 +173,8 @@ def create_sale(data):
 		frappe.throw(str(error))
 	values = dict(
 			doctype="Sales Invoice",
+			# Norske fakturaer betales med øre. ERPNext runder ellers av til hele kroner.
+			disable_rounded_total=1,
 			company=data.company,
 			customer=customer.name,
 			customer_address=address.name,
@@ -331,6 +333,7 @@ def create_purchase(data):
 			category = "asset"
 	values = dict(
 			doctype="Purchase Invoice",
+			disable_rounded_total=1,
 			company=data.company,
 			supplier=data.supplier,
 			posting_date=posting,

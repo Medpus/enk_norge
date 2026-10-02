@@ -151,6 +151,8 @@ def quiet_desk():
 		("disable_change_log_notification", 1),
 	):
 		frappe.db.set_single_value("System Settings", field, value)
+	# Norske fakturaer og nettbankbetalinger bruker øre. Ikke rund av til hele kroner.
+	frappe.db.set_single_value("Global Defaults", "disable_rounded_total", 1)
 	use_norwegian_date_format()
 
 

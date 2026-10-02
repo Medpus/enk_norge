@@ -108,6 +108,7 @@ def _tax_treatment(data, settings, posting):
 
 
 def _apply_enk_invoice_fields(invoice, data, settings, event_id, fingerprint, items):
+	invoice.disable_rounded_total = 1
 	posting = _date(data.get("posting_date") or today(), "fakturadato")
 	delivery = _date(data.get("delivery_date"), "leveringsdato")
 	description = str(data.get("delivery_description") or "").strip()
