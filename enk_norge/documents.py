@@ -33,7 +33,7 @@ def _list_fields(doctype):
 	if party:
 		fields.append(f"{party} as party")
 	if doctype in ("Sales Invoice", "Purchase Invoice"):
-		fields += ["grand_total as total", "outstanding_amount", "currency", "is_return"]
+		fields += ["grand_total as total", "outstanding_amount", "currency", "is_return", "due_date"]
 		if doctype == "Purchase Invoice":
 			fields.append("enk_payment_method as payment_method")
 	elif doctype == "Payment Entry":
@@ -52,6 +52,8 @@ def _status(doctype, row):
 		if row.get("is_return"):
 			return "credit_note"
 		if flt(row.get("outstanding_amount")) > 0.005:
+			if doctype == "Sales Invoice" and row.get("due_date") and getdate(row.due_date) < getdate(today()):
+				return "overdue"
 			return "unpaid"
 		return "paid"
 	return "posted"
@@ -75,7 +77,12 @@ def list_documents(company, kind="all", search="", limit=50, from_date=None, to_
 			or_filters = {"name": ["like", f"%{search}%"]}
 			if DOCTYPES[doctype]:
 				or_filters[DOCTYPES[doctype]] = ["like", f"%{search}%"]
-		settling = _settling_entries(company) if kind == "all" and doctype in ("Payment Entry", "Journal Entry") else set()
+		# Betalinger vises i fakturaen sin. Ved filter på en konto skal de likevel med.
+		settling = (
+			_settling_entries(company)
+			if kind == "all" and not account and doctype in ("Payment Entry", "Journal Entry")
+			else set()
+		)
 		for row in frappe.get_list(
 			doctype,
 			filters=filters,
@@ -94,6 +101,8 @@ def list_documents(company, kind="all", search="", limit=50, from_date=None, to_
 			if "outstanding_amount" in row:
 				row.outstanding_amount = str(flt(row.outstanding_amount, 2))
 			row.posting_date = str(row.posting_date) if row.posting_date else None
+			if row.get("due_date"):
+				row.due_date = str(row.due_date)
 			row.pop("modified", None)
 			rows.append(row)
 	rows.sort(key=lambda row: (row.posting_date or "", row.name), reverse=True)

@@ -79,7 +79,7 @@ class SimpleFlowsTest(unittest.TestCase):
 				customer_address=customer["customer_address"],
 				posting_date="2026-09-17",
 				delivery_date="2026-09-17",
-				due_date="2026-10-01",
+				due_date="2026-12-31",
 				description="Konsulentbistand",
 				quantity="10",
 				unit_price="1200",
@@ -414,3 +414,17 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertEqual([row.name for row in august], [purchase["name"]])
 		software = documents.list_documents(self.company, "all", account=settings.software_account)
 		self.assertEqual([row.name for row in software], [purchase["name"]])
+
+	def test_overdue_invoice_and_vat_threshold_progress(self):
+		from enk_norge.api import dashboard
+
+		customer = self.customer()
+		late = create_sale(
+			dict(company=self.company, customer=customer["customer"], customer_address=customer["customer_address"], posting_date="2026-09-01", delivery_date="2026-09-01", due_date="2026-09-15", items=[dict(description="Rådgivning", quantity="1", unit_price="12000")])
+		)
+		documents.submit_document(late["doctype"], late["name"])
+		self.assertEqual(documents.get_document(late["doctype"], late["name"])["status"], "overdue")
+		self.assertEqual([row.status for row in documents.list_documents(self.company, "sales")], ["overdue"])
+		data = dashboard(self.company)
+		self.assertEqual([row.name for row in data["overdue_sales"]], [late["name"]])
+		self.assertEqual((float(data["vat_rolling"]["basis"]), float(data["vat_rolling"]["threshold"])), (12000.0, 50000.0))

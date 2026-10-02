@@ -514,8 +514,34 @@ def dashboard(company):
 	from enk_norge.norway_rules import vat_registration_threshold_crossings
 	from enk_norge.validation import vat_turnover_events
 
-	crossings = vat_registration_threshold_crossings(vat_turnover_events(company))
+	events = vat_turnover_events(company)
+	crossings = vat_registration_threshold_crossings(events)
+	vat_rolling = None
+	if not settings.vat_registered:
+		from enk_norge.norway_rules import (
+			VAT_REGISTRATION_THRESHOLD,
+			RuleValidationError,
+			rolling_vat_registration_status,
+		)
+
+		try:
+			status = rolling_vat_registration_status(events, as_of=getdate(today()))
+			vat_rolling = dict(
+				basis=str(status.registration_basis),
+				threshold=str(VAT_REGISTRATION_THRESHOLD),
+				window_start=status.window_start.isoformat(),
+			)
+		except RuleValidationError:
+			vat_rolling = None
+	overdue = frappe.get_list(
+		"Sales Invoice",
+		filters={"company": company, "docstatus": 1, "is_return": 0, "outstanding_amount": [">", 0], "due_date": ["<", today()]},
+		fields=["name", "customer", "outstanding_amount", "due_date"],
+		limit_page_length=0,
+	)
 	return dict(
+		vat_rolling=vat_rolling,
+		overdue_sales=overdue,
 		vat_first_crossing=(dict(date=crossings[0].occurred_on.isoformat(), basis=str(crossings[0].registration_basis)) if crossings else None),
 		company=company,
 		vat_registered=bool(settings.vat_registered),
@@ -524,6 +550,7 @@ def dashboard(company):
 		result=str(income - expenses),
 		bank_balance=str(bank_balance),
 		bank_account_record=settings.bank_account_record,
+		bank_ledger_account=settings.bank_ledger_account,
 		vat_followup=[
 			row
 			for row in followup

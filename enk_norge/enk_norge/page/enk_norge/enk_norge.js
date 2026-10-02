@@ -599,6 +599,21 @@ class EnkNorgePage {
 			this.list_state.kind = $(event.currentTarget).attr("data-list-kind");
 			this.load_documents(company);
 		});
+		this.body.find("[data-amount-target]").on("click", (event) => {
+			const target = $(event.currentTarget).attr("data-amount-target");
+			if (target === "chart") {
+				this.body.find(".enk-insights")[0]?.scrollIntoView({ behavior: "smooth", block: "start" });
+				return;
+			}
+			const year = new Date().getFullYear();
+			this.list_state.status = "";
+			this.list_state.kind = target === "bank" ? "all" : target;
+			this.list_state.filter = target === "bank"
+				? { account: this.dashboard_data?.bank_ledger_account, label: __("Bankkontoen") }
+				: { from_date: `${year}-01-01`, to_date: `${year}-12-31`, label: target === "sales" ? __("Salg i {0}", [year]) : __("Kjøp i {0}", [year]) };
+			this.load_documents(company);
+			this.body.find(".enk-documents")[0]?.scrollIntoView({ behavior: "smooth", block: "start" });
+		});
 		this.body.find("[data-list-status]").on("click", (event) => {
 			const status = $(event.currentTarget).attr("data-list-status");
 			this.list_state.status = this.list_state.status === status ? "" : status;
@@ -661,7 +676,8 @@ class EnkNorgePage {
 			method: "enk_norge.documents.list_documents",
 			args: { company, kind: state.kind, search: state.search, limit: 100, from_date: filter.from_date, to_date: filter.to_date, account: filter.account },
 			callback: (response) => {
-				const rows = (response.message || []).filter((row) => !state.status || row.status === state.status);
+				const rows = (response.message || []).filter((row) => !state.status || row.status === state.status
+					|| (state.status === "unpaid" && row.status === "overdue"));
 				table.html(this.document_rows(rows));
 				table.find("[data-open-doctype]").on("click", (event) => {
 					event.preventDefault();
@@ -750,20 +766,23 @@ class EnkNorgePage {
 			</section>`;
 		}
 		const drafts = (dashboard.draft_sales?.length || 0) + (dashboard.draft_purchases?.length || 0);
-		const unpaid = dashboard.unpaid_sales?.length || 0;
+		const overdue = dashboard.overdue_sales?.length || 0;
+		const unpaid = (dashboard.unpaid_sales?.length || 0) - overdue;
 		const todo = [
+			overdue ? `<li><button type="button" class="btn btn-link enk-todo-urgent" data-list-status="overdue">${overdue === 1 ? __("1 faktura har forfalt") : __("{0} fakturaer har forfalt", [overdue])}</button></li>` : "",
 			drafts ? `<li><button type="button" class="btn btn-link" data-list-status="draft">${drafts === 1 ? __("1 kladd venter på bokføring") : __("{0} kladder venter på bokføring", [drafts])}</button></li>` : "",
-			unpaid ? `<li><button type="button" class="btn btn-link" data-list-status="unpaid">${unpaid === 1 ? __("1 faktura er ikke betalt") : __("{0} fakturaer er ikke betalt", [unpaid])}</button></li>` : "",
+			unpaid > 0 ? `<li><button type="button" class="btn btn-link" data-list-status="unpaid">${unpaid === 1 ? __("1 faktura venter på betaling") : __("{0} fakturaer venter på betaling", [unpaid])}</button></li>` : "",
 		].join("");
 		return `<section class="enk-overview" aria-labelledby="enk-overview-title">
 			<h3 id="enk-overview-title">${__("Status i år")}</h3>
 			${this.vat_threshold_notice(dashboard)}
-			<dl class="enk-overview-amounts">
-				${this.overview_amount(__("Inntekter"), dashboard.income)}
-				${this.overview_amount(__("Kostnader"), dashboard.expenses)}
-				${this.overview_amount(__("Resultat"), dashboard.result)}
-				${this.overview_amount(__("Bankkonto i regnskapet"), dashboard.bank_balance)}
-			</dl>
+			<div class="enk-overview-amounts">
+				${this.overview_amount(__("Inntekter"), dashboard.income, "sales")}
+				${this.overview_amount(__("Kostnader"), dashboard.expenses, "purchases")}
+				${this.overview_amount(__("Resultat"), dashboard.result, "chart")}
+				${this.overview_amount(__("Bankkonto i regnskapet"), dashboard.bank_balance, "bank")}
+			</div>
+			${this.vat_progress(dashboard)}
 			${todo ? `<ul class="enk-todo">${todo}</ul>` : `<p class="enk-todo-clear">${__("Ingen kladder eller ubetalte fakturaer.")}</p>`}
 			${this.document_list(__("Følg opp ved MVA-registrering"), dashboard.vat_followup, "customer", "grand_total", "Sales Invoice")}
 		</section>`;
@@ -782,8 +801,26 @@ class EnkNorgePage {
 		</section>`;
 	}
 
-	overview_amount(label, value) {
-		return `<div><dt>${label}</dt><dd>${frappe.utils.escape_html(format_nok(value))}</dd></div>`;
+	overview_amount(label, value, target) {
+		// Hvert tall åpner det det består av.
+		return `<div><button type="button" class="enk-amount" data-amount-target="${target}">
+			<span class="enk-amount-label">${label}</span><span class="enk-amount-value">${frappe.utils.escape_html(format_nok(value))}</span></button></div>`;
+	}
+
+	vat_progress(dashboard) {
+		const rolling = dashboard.vat_rolling;
+		if (!rolling || dashboard.vat_first_crossing) return "";
+		const basis = Math.max(0, Number(rolling.basis));
+		const threshold = Number(rolling.threshold);
+		const share = Math.min(100, (basis / threshold) * 100);
+		const left = Math.max(0, threshold - basis);
+		return `<div class="enk-vat-progress">
+			<div class="enk-vat-progress-head"><span>${__("MVA-grensen siste 12 måneder")}</span><strong>${frappe.utils.escape_html(format_nok(basis))} ${__("av")} ${frappe.utils.escape_html(format_nok(threshold))}</strong></div>
+			<div class="enk-vat-track" role="progressbar" aria-valuemin="0" aria-valuemax="${threshold}" aria-valuenow="${basis}" aria-label="${__("Omsetning mot MVA-grensen")}"><span style="width: ${share}%"></span></div>
+			<p class="text-muted small">${share >= 80
+				? __("Du nærmer deg grensen. {0} igjen før du må registrere foretaket i Merverdiavgiftsregisteret.", [frappe.utils.escape_html(format_nok(left))])
+				: __("{0} igjen før du må registrere foretaket i Merverdiavgiftsregisteret.", [frappe.utils.escape_html(format_nok(left))])}</p>
+		</div>`;
 	}
 
 	document_list(title, documents = [], party_field, amount_field, doctype) {
@@ -1066,7 +1103,7 @@ class EnkNorgePage {
 		if (doc.doctype === "Sales Invoice") {
 			add("pdf", doc.docstatus === 0 ? __("Forhåndsvis PDF") : __("Last ned PDF"));
 		}
-		if (doc.docstatus === 1 && doc.status === "unpaid") {
+		if (doc.docstatus === 1 && ["unpaid", "overdue"].includes(doc.status)) {
 			add("bank-payment", doc.doctype === "Sales Invoice" ? __("Registrer innbetaling") : __("Betalt fra bankkontoen"), true);
 			if (doc.doctype === "Purchase Invoice" && (doc.currency || "NOK") === "NOK") {
 				add("private-payment", __("Betalt med egne penger"));
@@ -2449,8 +2486,9 @@ function enk_doctype_label(doctype, doc = {}) {
 function enk_status_pill(status, payment_method = "") {
 	if (status === "paid" && payment_method === "Private") return `<span class="indicator-pill green enk-status">${__("Betalt privat")}</span>`;
 	const [label, color] = {
-		draft: [__("Kladd"), "orange"],
-		unpaid: [__("Ikke betalt"), "red"],
+		draft: [__("Kladd"), "gray"],
+		unpaid: [__("Ikke betalt"), "orange"],
+		overdue: [__("Forfalt"), "red"],
 		paid: [__("Betalt"), "green"],
 		credit_note: [__("Kreditnota"), "gray"],
 		posted: [__("Bokført"), "green"],

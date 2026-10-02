@@ -508,13 +508,15 @@
 	margin: 16px 0 0;
 }
 
-.enk-overview-amounts dt {
+.enk-amount-label {
+	display: block;
 	color: var(--text-muted);
 	font-size: var(--text-sm, 12px);
 	font-weight: 400;
 }
 
-.enk-overview-amounts dd {
+.enk-amount-value {
+	display: block;
 	margin: 2px 0 0;
 	color: var(--heading-color);
 	font-size: 18px;
@@ -1302,4 +1304,63 @@
 		grid-template-columns: 1fr;
 	}
 
+}
+
+.enk-amount {
+	display: block;
+	width: 100%;
+	margin: -6px;
+	padding: 6px;
+	border: 0;
+	border-radius: var(--border-radius-sm, 8px);
+	background: none;
+	color: inherit;
+	text-align: left;
+	box-sizing: content-box;
+}
+
+.enk-amount:hover,
+.enk-amount:focus-visible {
+	background: var(--subtle-fg, var(--control-bg));
+}
+
+.enk-vat-progress {
+	margin-top: 18px;
+	padding-top: 14px;
+	border-top: 1px solid var(--border-color);
+}
+
+.enk-vat-progress-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 4px 12px;
+	font-size: var(--text-sm, 12px);
+}
+
+.enk-vat-progress-head strong {
+	font-variant-numeric: tabular-nums;
+}
+
+.enk-vat-track {
+	height: 8px;
+	margin: 8px 0 6px;
+	border-radius: 4px;
+	background: var(--subtle-fg, var(--control-bg));
+	overflow: hidden;
+}
+
+.enk-vat-track span {
+	display: block;
+	height: 100%;
+	border-radius: 4px;
+	background: var(--text-muted);
+}
+
+.enk-vat-progress p {
+	margin: 0;
+}
+
+.enk-todo .enk-todo-urgent {
+	color: var(--red-600, #c4320a);
 }
