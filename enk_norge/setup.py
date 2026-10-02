@@ -151,6 +151,14 @@ def quiet_desk():
 		("disable_change_log_notification", 1),
 	):
 		frappe.db.set_single_value("System Settings", field, value)
+	use_norwegian_date_format()
+
+
+def use_norwegian_date_format():
+	"""Norsk datoformat. ERPNexts landsoppsett for Norge gir dd-mm-yyyy."""
+	frappe.db.set_single_value("System Settings", "date_format", "dd.mm.yyyy")
+	# Frappe leser formatet fra systemstandarden, som bare oppdateres når skjemaet lagres.
+	frappe.db.set_default("date_format", "dd.mm.yyyy")
 
 
 def repair_completed_setup_home_page():

@@ -41,7 +41,7 @@ window.enk_norge_actions = {
 
 	pay_privately(doc, on_created) {
 		frappe.prompt([
-			{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Bruk dette når du betalte med egne penger. Foretaket skylder deg da beløpet.")}</p>` },
+			{ fieldtype: "HTML", options: `<p class="text-muted small">${__("Bruk dette når du betalte med egne penger. Beløpet føres som ditt innskudd i foretaket, og kostnaden gir fradrag som vanlig.")}</p>` },
 			{ fieldname: "posting_date", label: __("Betalingsdato"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
 		], async (values) => {
 			const response = await frappe.call({ method: "enk_norge.api.pay_purchase_privately", args: { invoice: doc.name, posting_date: values.posting_date }, freeze: true });

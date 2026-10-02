@@ -127,8 +127,10 @@ Kjøpet blir en kladd. Trykk «Legg ved kvittering». På mobil kan du ta bilde 
 når kvitteringen er lagt ved, kan kjøpet bokføres.
 
 Etter bokføring registrerer du betalingen: «Betalt fra bankkontoen» når foretakets konto
-ble brukt, eller «Betalt med egne penger» når du la ut privat. Da skylder foretaket deg
-beløpet.
+ble brukt, eller «Betalt med egne penger» når du la ut privat. Et ENK kan ikke skylde
+eieren penger. Det du betaler privat, føres som innskudd i foretaket på kontoen
+«Innskudd og private utlegg», som er egenkapital. Kostnaden gir fradrag som vanlig, og
+foretakets bankkonto i regnskapet blir urørt.
 
 ## Utstyr og avskrivning
 
@@ -186,6 +188,7 @@ Gebyret gjelder gebyr uten MVA. Får du faktura med MVA for tjenesten, føres de
 ## Innskudd og uttak
 
 «Innskudd eller uttak» fører penger du setter inn i foretaket eller tar ut til privat bruk.
+Begge deler endrer egenkapitalen. Ingen av dem påvirker skatten, som beregnes av overskuddet.
 Oppgi beløp, dato, forklaring og teksten fra kontoutskriften.
 
 ## Årsoppgjør

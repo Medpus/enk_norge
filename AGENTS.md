@@ -136,7 +136,11 @@ labelen «for konsistens».
   noen test merket det.
 - Frappes datovelger kan låse hele siden i en løkke mellom velgeren og feltet. Det skjedde i
   produksjon, men lot seg ikke gjenskape lokalt etter første rettelse. Faktura- og kjøpsskjemaet
-  bruker derfor nettleserens `<input type="date">` via `with_defaults` og `use_native_dates`.
+  bruker derfor et tekstfelt for dato via `with_defaults` og `use_native_dates`. Nettleserens
+  `<input type="date">` ble forkastet fordi den viser datoen i nettleserens språk, for eksempel
+  amerikansk måned/dag.
+- Systemets datoformat leses fra standardverdien `date_format`, ikke bare fra System Settings.
+  Setter du feltet med `set_single_value`, må du også kjøre `frappe.db.set_default`.
 - Når en ERPNext-fakturakladd endres, må `payment_schedule` tømmes. Ellers tar ERPNext
   forfallsdatoen fra den gamle betalingsplanen og ignorerer den nye.
 - Fakturamalen kjører inne i Frappes utskrifts-CSS, som har Bootstrap. Klassenavn som `label`

@@ -1124,6 +1124,7 @@ class EnkNorgePage {
 			]),
 			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: async (values) => {
+				if (!this.valid_dates(dialog)) return;
 				if (!values.customer_address) {
 					frappe.msgprint(__("Kunden mangler fakturaadresse. Opprett kunden med «Ny kunde», eller legg til adressen på kunden."));
 					return;
@@ -1165,7 +1166,7 @@ class EnkNorgePage {
 
 	with_defaults(edit, fields) {
 		// Frappes datovelger kan låse hele siden i en løkke mellom velgeren og feltet. Disse
-		// skjemaene bruker derfor nettleserens egen datovelger, og en kladds verdier gis som
+		// skjemaene bruker derfor et vanlig tekstfelt for dato, og en kladds verdier gis som
 		// startverdier i stedet for å settes etter at skjemaet er åpnet.
 		return fields.map((field) => {
 			const value = edit?.[field.fieldname];
@@ -1179,12 +1180,23 @@ class EnkNorgePage {
 	}
 
 	use_native_dates(dialog) {
+		// Brukeren skriver dd.mm.åååå. Skjemaet lagrer datoen som åååå-mm-dd, slik serveren forventer.
 		for (const field of dialog.fields_list) {
 			if (!field.df.enk_native_date || !field.$input) continue;
-			const value = field.get_value();
-			field.$input.attr("type", "date");
-			field.$input.val(value || "");
+			field.parse = (value) => parse_nb_date(value) ?? value;
+			field.format_for_input = (value) => format_nb_date(value);
+			field.$input.attr({ placeholder: "dd.mm.åååå", inputmode: "decimal", autocomplete: "off" });
+			field.set_formatted_input(field.get_value());
 		}
+	}
+
+	valid_dates(dialog) {
+		const invalid = dialog.fields_list.find((field) => field.df.enk_native_date && field.get_value() && !/^\d{4}-\d{2}-\d{2}$/.test(field.get_value()));
+		if (invalid) {
+			frappe.msgprint(__("Skriv {0} som dd.mm.åååå, for eksempel 02.10.2026.", [invalid.df.label]));
+			return false;
+		}
+		return true;
 	}
 
 	customer_fields(get_dialog) {
@@ -1523,6 +1535,7 @@ class EnkNorgePage {
 			]),
 			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: (values) => {
+				if (!this.valid_dates(dialog)) return;
 				delete values.supplier_display;
 				if (!registered) {
 					values.vat_rate = "0";
@@ -2053,6 +2066,27 @@ class EnkNorgePage {
 			},
 		});
 	}
+}
+
+function parse_nb_date(value) {
+	// Godtar 2.10.2026, 02.10.26, 2-10-2026 og 2026-10-02. Gir null når datoen ikke finnes.
+	const text = String(value || "").trim();
+	if (!text) return "";
+	let day, month, year;
+	const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+	const nb = text.match(/^(\d{1,2})[.\-/ ](\d{1,2})[.\-/ ](\d{2}|\d{4})$/);
+	if (iso) [, year, month, day] = iso;
+	else if (nb) [, day, month, year] = nb;
+	else return null;
+	year = year.length === 2 ? `20${year}` : year;
+	const date = new Date(Number(year), Number(month) - 1, Number(day));
+	if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) return null;
+	return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function format_nb_date(value) {
+	const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+	return match ? `${match[3]}.${match[2]}.${match[1]}` : (value || "");
 }
 
 function format_plain(value) {
