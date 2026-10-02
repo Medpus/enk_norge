@@ -34,6 +34,8 @@ def _list_fields(doctype):
 		fields.append(f"{party} as party")
 	if doctype in ("Sales Invoice", "Purchase Invoice"):
 		fields += ["grand_total as total", "outstanding_amount", "currency", "is_return"]
+		if doctype == "Purchase Invoice":
+			fields.append("enk_payment_method as payment_method")
 	elif doctype == "Payment Entry":
 		fields += ["paid_amount as total", "payment_type", "paid_from_account_currency as currency"]
 	else:
@@ -69,6 +71,7 @@ def list_documents(company, kind="all", search="", limit=50):
 			or_filters = {"name": ["like", f"%{search}%"]}
 			if DOCTYPES[doctype]:
 				or_filters[DOCTYPES[doctype]] = ["like", f"%{search}%"]
+		settling = _settling_entries(company) if kind == "all" and doctype in ("Payment Entry", "Journal Entry") else set()
 		for row in frappe.get_list(
 			doctype,
 			filters=filters,
@@ -77,6 +80,8 @@ def list_documents(company, kind="all", search="", limit=50):
 			order_by="posting_date desc, modified desc",
 			limit_page_length=limit,
 		):
+			if (doctype, row.name) in settling:
+				continue
 			row.doctype = doctype
 			row.status = _status(doctype, row)
 			row.total = str(flt(row.get("total"), 2))
@@ -87,6 +92,24 @@ def list_documents(company, kind="all", search="", limit=50):
 			rows.append(row)
 	rows.sort(key=lambda row: (row.posting_date or "", row.name), reverse=True)
 	return rows[:limit]
+
+
+def _settling_entries(company):
+	"""Bokførte betalinger og private oppgjør som bare gjør opp en faktura. De vises i fakturaen."""
+	rows = frappe.db.sql(
+		"""select 'Payment Entry', pe.name from `tabPayment Entry` pe
+		where pe.company = %(company)s and pe.docstatus = 1
+		and exists (select 1 from `tabPayment Entry Reference` r where r.parent = pe.name)
+		union all
+		select 'Journal Entry', je.name from `tabJournal Entry` je
+		where je.company = %(company)s and je.docstatus = 1 and je.enk_payment_key is not null
+		and exists (
+			select 1 from `tabJournal Entry Account` a
+			where a.parent = je.name and a.reference_type in ('Sales Invoice', 'Purchase Invoice')
+		)""",
+		dict(company=company),
+	)
+	return {tuple(row) for row in rows}
 
 
 def _load(doctype, name):
@@ -155,6 +178,10 @@ def _summary(doc):
 		can_submit=doc.docstatus == 0 and frappe.has_permission(doc.doctype, "submit", doc),
 		can_delete=doc.docstatus == 0 and frappe.has_permission(doc.doctype, "delete", doc),
 	)
+	if doc.doctype in ("Sales Invoice", "Purchase Invoice") and doc.docstatus == 1:
+		result["payments"] = _payments(doc)
+	if doc.doctype == "Purchase Invoice":
+		result["payment_method"] = doc.get("enk_payment_method") or ""
 	if doc.doctype == "Purchase Invoice" and doc.docstatus == 1:
 		activated, allocated = _activation(doc)
 		result.update(activated_amount=str(activated), tax_pool_remaining=str(activated - allocated))
@@ -243,6 +270,7 @@ def _edit_values(doc):
 			deductible_fraction_percent=flt(doc.get("enk_deductible_fraction") or 1) * 100,
 			tax_deductible_fraction_percent=flt(doc.get("enk_tax_deductible_fraction") or 1) * 100,
 			tax_adjustment_reason=doc.get("enk_tax_adjustment_reason"),
+			payment_method=doc.get("enk_payment_method") or "Unpaid",
 		)
 	return None
 
@@ -328,7 +356,52 @@ def submit_document(doctype, name):
 		frappe.throw("Dokumentet er allerede bokført.")
 	doc.check_permission("submit")
 	doc.submit()
+	if doc.doctype == "Purchase Invoice" and doc.get("enk_payment_method") in ("Private", "Bank"):
+		_pay_on_submit(doc)
+		doc.reload()
 	return _summary(doc)
+
+
+def _pay_on_submit(doc):
+	"""Kortkjøp er betalt samtidig. Registrer og bokfør betalingen sammen med kjøpet.
+
+	Alt skjer i samme transaksjon. Feiler betalingen, blir heller ikke kjøpet bokført.
+	"""
+	from enk_norge.api import pay_purchase_privately
+	from enk_norge.banking import create_payment
+
+	posting_date = str(doc.bill_date or doc.posting_date)
+	if doc.enk_payment_method == "Private":
+		payment = pay_purchase_privately(doc.name, posting_date=posting_date)
+	else:
+		payment = create_payment(
+			doc.doctype,
+			doc.name,
+			amount=str(flt(doc.outstanding_amount, 2)),
+			posting_date=posting_date,
+			reference=f"Kortkjøp {doc.bill_no}"[:140],
+		)
+	entry = frappe.get_doc(payment["doctype"], payment["name"])
+	if entry.docstatus == 0:
+		entry.submit()
+
+
+def _payments(doc):
+	"""Bokførte betalinger og private oppgjør som gjelder fakturaen."""
+	rows = frappe.db.sql(
+		"""select pe.name, pe.posting_date, 'Payment Entry' doctype
+		from `tabPayment Entry Reference` r join `tabPayment Entry` pe on pe.name = r.parent
+		where r.reference_doctype = %(doctype)s and r.reference_name = %(name)s and pe.docstatus = 1
+		union all
+		select je.name, je.posting_date, 'Journal Entry' doctype
+		from `tabJournal Entry Account` a join `tabJournal Entry` je on je.name = a.parent
+		where a.reference_type = %(doctype)s and a.reference_name = %(name)s and je.docstatus = 1
+		and je.enk_payment_key is not null
+		order by posting_date""",
+		dict(doctype=doc.doctype, name=doc.name),
+		as_dict=True,
+	)
+	return [dict(doctype=row.doctype, name=row.name, posting_date=str(row.posting_date)) for row in rows]
 
 
 @frappe.whitelist(methods=["POST"])

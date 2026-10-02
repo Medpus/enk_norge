@@ -121,6 +121,13 @@ def after_migrate():
 	fields["Purchase Invoice"].extend(
 		[
 			dict(
+				fieldname="enk_payment_method",
+				label="Betaling",
+				fieldtype="Select",
+				options="\nUnpaid\nPrivate\nBank",
+				description="Betalingen registreres automatisk når kjøpet bokføres.",
+			),
+			dict(
 				fieldname="enk_tax_deductible_fraction",
 				label="Skattemessig fradragsandel (0-1)",
 				fieldtype="Float",

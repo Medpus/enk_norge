@@ -126,11 +126,18 @@ fra kvitteringen eller kontoutskriften.
 Kjøpet blir en kladd. Trykk «Legg ved kvittering». På mobil kan du ta bilde direkte. Først
 når kvitteringen er lagt ved, kan kjøpet bokføres.
 
-Etter bokføring registrerer du betalingen: «Betalt fra bankkontoen» når foretakets konto
-ble brukt, eller «Betalt med egne penger» når du la ut privat. Et ENK kan ikke skylde
-eieren penger. Det du betaler privat, føres som innskudd i foretaket på kontoen
-«Innskudd og private utlegg», som er egenkapital. Kostnaden gir fradrag som vanlig, og
-foretakets bankkonto i regnskapet blir urørt.
+Velg også hvordan kjøpet ble betalt: «Med egne penger», «Fra foretakskontoen» eller «Ikke
+betalt ennå» for en faktura med forfall. Ved de to første registreres betalingen automatisk
+på kvitteringsdatoen når du bokfører kjøpet, og listen viser bare kjøpet, for eksempel med
+status «Betalt privat». Betalingen står inne i kjøpet. Betaling ved bokføring krever beløp i
+NOK, altså beløpet fra kontoutskriften.
+
+Et ENK kan ikke skylde eieren penger. Det du betaler privat, føres som innskudd i foretaket
+på kontoen «Innskudd og private utlegg», som er egenkapital. Kostnaden gir fradrag som vanlig,
+og foretakets bankkonto i regnskapet blir urørt.
+
+Er kjøpet «Ikke betalt ennå», registrerer du betalingen senere med «Betalt fra bankkontoen»
+eller «Betalt med egne penger» på det bokførte kjøpet.
 
 ## Utstyr og avskrivning
 

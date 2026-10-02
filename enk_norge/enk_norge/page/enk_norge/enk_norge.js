@@ -520,7 +520,7 @@ class EnkNorgePage {
 				</span>
 				<span class="enk-row-side">
 					<strong>${frappe.utils.escape_html(format_money(amount, row.currency))}</strong>
-					${enk_status_pill(row.status)}
+					${enk_status_pill(row.status, row.payment_method)}
 				</span>
 			</a></li>`;
 		}).join("")}</ul>`;
@@ -827,13 +827,17 @@ class EnkNorgePage {
 						<h2 id="enk-bilag-title">${escape(doc.party || doc.description || enk_doctype_label(doc.doctype, doc))}</h2>
 						<p>${enk_doctype_label(doc.doctype, doc)} · ${escape(doc.name)}</p>
 					</div>
-					${enk_status_pill(doc.status)}
+					${enk_status_pill(doc.status, doc.payment_method)}
 				</header>
 				${this.document_guidance(doc, needs_receipt)}
 				<div class="enk-bilag-actions">${this.document_actions(doc, needs_receipt)}</div>
 				<dl class="enk-facts">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(String(value))}</dd></div>`).join("")}</dl>
 				${lines}
 				<dl class="enk-totals">${totals.map(([label, value]) => `<div><dt>${label}</dt><dd>${money(value)}</dd></div>`).join("")}</dl>
+				${(doc.payments || []).length ? `<section class="enk-payments">
+					<h3>${__("Betaling")}</h3>
+					<ul>${doc.payments.map((payment) => `<li><a href="/desk/enk-norge/bilag/${encodeURIComponent(payment.doctype)}/${encodeURIComponent(payment.name)}" data-open-doctype="${escape(payment.doctype)}" data-open-name="${escape(payment.name)}">${payment.doctype === "Journal Entry" ? __("Med egne penger") : __("Fra bankkontoen")} ${frappe.datetime.str_to_user(payment.posting_date)}</a> <span class="text-muted small">${escape(payment.name)}</span></li>`).join("")}</ul>
+				</section>` : ""}
 				<section class="enk-attachments" aria-labelledby="enk-attachments-title">
 					<h3 id="enk-attachments-title">${__("Vedlegg")}</h3>
 					${doc.attachments.length
@@ -862,6 +866,11 @@ class EnkNorgePage {
 				: __("Dette er en kladd. Kontroller opplysningene og bokfør når alt stemmer.");
 			if (doc.doctype === "Sales Invoice") {
 				text += " " + __("Kladden er ikke sendt til kunden. Last ned PDF-en og send den selv etter bokføring.");
+			}
+			if (doc.payment_method === "Private") {
+				text += " " + __("Når du bokfører, registreres betalingen med egne penger på kvitteringsdatoen.");
+			} else if (doc.payment_method === "Bank") {
+				text += " " + __("Når du bokfører, registreres betalingen fra foretakskontoen på kvitteringsdatoen.");
 			}
 		} else if (doc.status === "unpaid") {
 			text = doc.doctype === "Sales Invoice"
@@ -966,6 +975,11 @@ class EnkNorgePage {
 			callback: (response) => open_created(response.message),
 		}));
 		this.body.find(".enk-upload-input").on("change", (event) => this.upload_attachment(doc, event.target, reload));
+		this.body.find(".enk-payments [data-open-doctype]").on("click", (event) => {
+			event.preventDefault();
+			const target = $(event.currentTarget);
+			this.open_document(target.attr("data-open-doctype"), target.attr("data-open-name"));
+		});
 	}
 
 	open_add_to_tax_pool_dialog(doc, done) {
@@ -1497,6 +1511,19 @@ class EnkNorgePage {
 				{ fieldtype: "Column Break" },
 				{ fieldname: "bill_date", label: __("Dato på kvitteringen"), fieldtype: "Date", reqd: 1, default: frappe.datetime.get_today() },
 				{ fieldtype: "Section Break" },
+				{
+					fieldname: "payment_method",
+					label: __("Hvordan ble det betalt?"),
+					fieldtype: "Select",
+					options: [
+						{ label: __("Med egne penger"), value: "Private" },
+						{ label: __("Fra foretakskontoen"), value: "Bank" },
+						{ label: __("Ikke betalt ennå, faktura med forfall"), value: "Unpaid" },
+					],
+					default: last_payment_method(),
+					reqd: 1,
+					description: __("Betalingen registreres på kvitteringsdatoen når du bokfører kjøpet."),
+				},
 				{ fieldname: "bill_no", label: __("Kvitterings- eller fakturanummer"), fieldtype: "Data", reqd: 1, description: __("Står på kvitteringen. Brukes til å stoppe dobbeltregistrering.") },
 				{
 					fieldname: "vat_rate",
@@ -1536,6 +1563,7 @@ class EnkNorgePage {
 			primary_action_label: draft ? __("Lagre endringer") : __("Lag kladd"),
 			primary_action: (values) => {
 				if (!this.valid_dates(dialog)) return;
+				remember_payment_method(values.payment_method);
 				delete values.supplier_display;
 				if (!registered) {
 					values.vat_rate = "0";
@@ -2068,6 +2096,22 @@ class EnkNorgePage {
 	}
 }
 
+function last_payment_method() {
+	try {
+		return localStorage.getItem("enk_payment_method") || "Private";
+	} catch (error) {
+		return "Private";
+	}
+}
+
+function remember_payment_method(value) {
+	try {
+		localStorage.setItem("enk_payment_method", value);
+	} catch (error) {
+		// Ikke viktig om nettleseren ikke lar oss lagre valget.
+	}
+}
+
 function parse_nb_date(value) {
 	// Godtar 2.10.2026, 02.10.26, 2-10-2026 og 2026-10-02. Gir null når datoen ikke finnes.
 	const text = String(value || "").trim();
@@ -2214,7 +2258,8 @@ function enk_doctype_label(doctype, doc = {}) {
 	}[doctype] || doctype;
 }
 
-function enk_status_pill(status) {
+function enk_status_pill(status, payment_method = "") {
+	if (status === "paid" && payment_method === "Private") return `<span class="indicator-pill green enk-status">${__("Betalt privat")}</span>`;
 	const [label, color] = {
 		draft: [__("Kladd"), "orange"],
 		unpaid: [__("Ikke betalt"), "red"],

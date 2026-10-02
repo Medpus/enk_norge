@@ -246,6 +246,14 @@ def create_purchase(data):
 		return existing
 	if data.get("draft") and data.external_id:
 		frappe.throw("En kladd fra en ekstern kilde kan ikke redigeres.")
+	payment_method = data.get("payment_method") or ""
+	if payment_method not in ("", "Unpaid", "Private", "Bank"):
+		frappe.throw("Velg hvordan kjøpet ble betalt.")
+	if payment_method in ("Private", "Bank") and (currency.currency or "NOK") != "NOK":
+		frappe.throw(
+			"Betaling ved bokføring krever beløp i NOK. Bruk beløpet fra kontoutskriften, "
+			"eller velg «Ikke betalt ennå» og registrer betalingen etterpå."
+		)
 	supplier = frappe.get_doc("Supplier", data.supplier)
 	supplier.check_permission("read")
 	if not data.description or not data.bill_no or not data.bill_date:
@@ -334,6 +342,7 @@ def create_purchase(data):
 	values = dict(
 			doctype="Purchase Invoice",
 			disable_rounded_total=1,
+			enk_payment_method=payment_method,
 			company=data.company,
 			supplier=data.supplier,
 			posting_date=posting,

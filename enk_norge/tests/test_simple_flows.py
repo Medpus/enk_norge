@@ -363,3 +363,31 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertEqual((values["gross_amount"], values["category"]), (990.25, "expense"))
 		create_purchase(purchase_args | dict(draft=purchase["name"], gross_amount="450"))
 		self.assertEqual(frappe.get_doc("Purchase Invoice", purchase["name"]).grand_total, 450)
+
+	def test_card_purchase_is_paid_when_posted_and_listed_once(self):
+		supplier = parties.create_supplier(dict(supplier_name="Fiktiv AI " + uuid4().hex[:6], country="United States"))
+		base = dict(
+			company=self.company,
+			supplier=supplier["supplier"],
+			posting_date="2026-09-17",
+			bill_date="2026-09-17",
+			description="AI-abonnement",
+			category="software",
+			gross_amount="990.25",
+			vat_rate="0",
+			foreign_service=1,
+		)
+		for method, bill_no in (("Private", "OAI-P"), ("Bank", "OAI-B")):
+			draft = create_purchase(base | dict(bill_no=bill_no, payment_method=method))
+			self.attach(draft["doctype"], draft["name"])
+			posted = documents.submit_document(draft["doctype"], draft["name"])
+			self.assertEqual(posted["status"], "paid", method)
+			self.assertEqual(posted["payment_method"], method)
+			self.assertEqual(len(posted["payments"]), 1)
+			payment = frappe.get_doc(posted["payments"][0]["doctype"], posted["payments"][0]["name"])
+			self.assertEqual((payment.docstatus, str(payment.posting_date)), (1, "2026-09-17"))
+		listed = documents.list_documents(self.company, "all")
+		self.assertEqual({row.doctype for row in listed}, {"Purchase Invoice"})
+		self.assertEqual(len(documents.list_documents(self.company, "other")), 2)
+		with self.assertRaises(frappe.ValidationError):
+			create_purchase(base | dict(bill_no="OAI-USD", payment_method="Private", currency="USD", conversion_rate="10.5", exchange_rate_source="Norges Bank", exchange_rate_date="2026-09-17"))

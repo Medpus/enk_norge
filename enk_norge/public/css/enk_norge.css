@@ -1056,3 +1056,16 @@
 		grid-column: 3;
 	}
 }
+
+.enk-payments {
+	margin-top: 20px;
+}
+
+.enk-payments h3 {
+	margin-bottom: 6px;
+}
+
+.enk-payments ul {
+	margin: 0;
+	padding-left: 18px;
+}
