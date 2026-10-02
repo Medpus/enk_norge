@@ -704,7 +704,7 @@ class EnkNorgePage {
 			return `<li><a href="/desk/enk-norge/bilag/${encodeURIComponent(row.doctype)}/${encodeURIComponent(row.name)}" data-open-doctype="${frappe.utils.escape_html(row.doctype)}" data-open-name="${frappe.utils.escape_html(row.name)}">
 				<span class="enk-row-main">
 					<span class="enk-row-party">${frappe.utils.escape_html(row.party || row.description || enk_doctype_label(row.doctype, row))}</span>
-					<span class="enk-row-meta">${enk_doctype_label(row.doctype, row)} · ${frappe.utils.escape_html(row.name)} · ${row.posting_date ? frappe.datetime.str_to_user(row.posting_date) : ""}</span>
+					<span class="enk-row-meta">${enk_doctype_label(row.doctype, row)} ${frappe.utils.escape_html(row.name)}, ${row.posting_date ? frappe.datetime.str_to_user(row.posting_date) : ""}</span>
 				</span>
 				<span class="enk-row-side">
 					<strong>${frappe.utils.escape_html(format_money(amount, row.currency))}</strong>
@@ -990,11 +990,11 @@ class EnkNorgePage {
 		const data = (await frappe.call({ method: "enk_norge.parties.list_parties" })).message;
 		const customer_rows = data.customers.map((c) => `<li>
 			<span class="enk-row-main"><span class="enk-row-party">${escape(c.customer_name)}</span>
-			<span class="enk-row-meta">${escape([c.address_line, [c.postal_code, c.city].filter(Boolean).join(" "), c.country !== "Norway" ? c.country : "", c.tax_id ? `${__("Org.nr.")} ${c.tax_id}` : "", c.email_id].filter(Boolean).join(" · "))}</span></span>
+			<span class="enk-row-meta">${escape([c.address_line, [c.postal_code, c.city].filter(Boolean).join(" "), c.country !== "Norway" ? c.country : "", c.tax_id ? `${__("Org.nr.")} ${c.tax_id}` : "", c.email_id].filter(Boolean).join(", "))}</span></span>
 			<button type="button" class="btn btn-default btn-xs" data-edit-customer="${escape(c.name)}">${__("Rediger")}</button></li>`).join("");
 		const supplier_rows = data.suppliers.map((v) => `<li>
 			<span class="enk-row-main"><span class="enk-row-party">${escape(v.supplier_name)}</span>
-			<span class="enk-row-meta">${escape([__(v.country || "Norway"), v.tax_id ? `${__("Org.nr.")} ${v.tax_id}` : ""].filter(Boolean).join(" · "))}</span></span>
+			<span class="enk-row-meta">${escape([__(v.country || "Norway"), v.tax_id ? `${__("Org.nr.")} ${v.tax_id}` : ""].filter(Boolean).join(", "))}</span></span>
 			<button type="button" class="btn btn-default btn-xs" data-edit-supplier="${escape(v.name)}">${__("Rediger")}</button></li>`).join("");
 		this.body.html(`<section class="enk-bilag enk-parties" aria-labelledby="enk-parties-title">
 			<button class="btn btn-link enk-back" type="button" data-action="back">${frappe.utils.icon("arrow-left", "sm")} ${__("Oversikt")}</button>
@@ -1076,7 +1076,7 @@ class EnkNorgePage {
 				<header class="enk-bilag-header">
 					<div>
 						<h2 id="enk-bilag-title">${escape(doc.party || doc.description || enk_doctype_label(doc.doctype, doc))}</h2>
-						<p>${enk_doctype_label(doc.doctype, doc)} · ${escape(doc.name)}</p>
+						<p>${enk_doctype_label(doc.doctype, doc)} ${escape(doc.name)}</p>
 					</div>
 					${enk_status_pill(doc.status, doc.payment_method)}
 				</header>

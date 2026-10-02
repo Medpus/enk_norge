@@ -54,13 +54,26 @@ fakturaen betalt. Omvendt avgiftsplikt ble beregnet, postert, beregnet på nytt 
 kvittering. Overgangen til MVA-registrert ga ordinær MVA-melding. Årsrapporten ble bygget med
 skattemessig avskrivning, og fakturaen fra det nye sitet ble hentet som PDF og kontrollert visuelt.
 
+Etter tilbakemeldinger fra bruk i produksjon ble dette lagt til og prøvd i nettleseren
+2026-10-02, på PC og mobil, som eierbruker på `fersk.localhost` og `dev.localhost`. Fakturaen
+fikk flere linjer, fakturanummer fra 1001 og et norsk oppsett med betalingsinformasjon og
+foretaksopplysninger fast nederst, også over flere sider. En faktura på 40 linjer ga tre sider
+med bunnteksten på hver. Kladder for salg og kjøp kan redigeres og beholder nummeret, og
+redigert forfallsdato lagres. Kortkjøp betales i samme steg som bokføringen, både med egne
+penger og fra foretakskontoen. Datoer vises og skrives som dd.mm.åååå, og beløp rundes ikke
+av til hele kroner. Oversikten viser inntekter og kostnader per måned, kostnader per type,
+klikkbare tall, MVA-grensen siste 12 måneder og forfalte fakturaer. Kunder, leverandører og
+foretakets kontaktinformasjon kan rettes. Utsending av faktura på e-post er prøvd med
+avvisning av kladd og feil e-postserver i nettleseren, og med arkivert PDF i testene. Faktisk
+levering til en mottaker er ikke prøvd, fordi det krever en ekte e-postkonto.
+
 Tower har daglig fullbackup og Nobara mottar en kryptert kopi. Begge kjøringene er
 prøvd. Se [backup og gjenoppretting](backup.md) for tidspunkt, bevaring og nøkkelbehov.
 Gjenoppretting i produksjon er ikke brukt som test.
 
 Sluttkontroll lokalt:
 
-- Samlet suite: 178 av 178 testtilfeller besto uten hoppede tester. De enkle flytene kjører
+- Samlet suite: 185 av 185 testtilfeller besto uten hoppede tester. De enkle flytene kjører
   som en vanlig eierbruker, ikke som Administrator, så manglende roller og rettigheter synes.
 - Rene Python-tester uten Frappe: 61 besto, 24 integrasjonstester ble eksplisitt hoppet over.
 - `ruff check`, Python-kompilering, JavaScript-syntaks og `git diff --check` besto.
