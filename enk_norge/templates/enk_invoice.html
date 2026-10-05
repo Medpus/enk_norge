@@ -3,6 +3,8 @@
 {% set registered = issuer.vat_registered %}
 {% set seller = issuer.company_name or doc.company %}
 {% set seller_email = issuer.email or frappe.db.get_value('Company', doc.company, 'email') %}
+{# Valutakoden skrives ut, ikke «kr», så det er tydelig at beløpene er i NOK. #}
+{% macro money(value) %}{{ doc.currency }} {{ frappe.utils.fmt_money(value, precision=2) }}{% endmacro %}
 {% set org = enk_format_number(issuer.organization_number, 'org') %}
 {% set account = enk_format_number(issuer.bank_account, 'account') %}
 {% set lines_text = doc.items | map(attribute='description') | join('\n') %}
@@ -107,10 +109,10 @@
     <tr><td style="width: 55%;"></td><td>
       <table>
         {% if doc.taxes %}
-        <tr><td>Sum eks. MVA</td><td class="val">{{ doc.get_formatted('net_total') }}</td></tr>
-        {% for tax in doc.taxes %}<tr><td>MVA {{ tax.rate | int }} %</td><td class="val">{{ tax.get_formatted('tax_amount') }}</td></tr>{% endfor %}
+        <tr><td>Sum eks. MVA</td><td class="val">{{ money(doc.net_total) }}</td></tr>
+        {% for tax in doc.taxes %}<tr><td>MVA {{ tax.rate | int }} %</td><td class="val">{{ money(tax.tax_amount) }}</td></tr>{% endfor %}
         {% endif %}
-        <tr class="grand"><td>{{ 'Til gode' if doc.is_return else 'Å betale' }}</td><td class="val">{{ doc.get_formatted('grand_total') }}</td></tr>
+        <tr class="grand"><td>{{ 'Til gode' if doc.is_return else 'Å betale' }}</td><td class="val">{{ money(doc.grand_total) }}</td></tr>
       </table>
     </td></tr>
   </table>
@@ -128,7 +130,7 @@
       <table>
         <tr>
           <td><div class="lbl">Kontonummer</div><div class="val">{{ account | e }}</div></td>
-          <td><div class="lbl">Beløp</div><div class="val">{{ doc.get_formatted('grand_total') }}</div></td>
+          <td><div class="lbl">Beløp</div><div class="val">{{ money(doc.grand_total) }}</div></td>
           <td><div class="lbl">Forfallsdato</div><div class="val">{{ frappe.utils.formatdate(doc.due_date, 'dd.MM.yyyy') }}</div></td>
           <td><div class="lbl">Fakturanummer</div><div class="val">{{ doc.name | e }}</div></td>
         </tr>

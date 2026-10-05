@@ -446,6 +446,8 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertEqual(documents.get_document(sale["doctype"], sale["name"])["edit"]["customer_reference"], "PO-4711")
 		html = frappe.get_print("Sales Invoice", sale["name"], print_format="ENK Faktura")
 		self.assertIn("PO-4711", html)
+		self.assertIn("NOK 100", html)
+		self.assertNotIn("kr ", html)
 		self.assertIn("post@example.invalid", html)
 		documents.submit_document(sale["doctype"], sale["name"])
 		update_company_contact(self.company, dict(address_line="Kontorveien 3", postal_code="0150", city="Oslo", phone="40000000", email="ny@example.invalid"))
