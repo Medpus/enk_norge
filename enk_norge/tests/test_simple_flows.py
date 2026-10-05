@@ -447,6 +447,10 @@ class SimpleFlowsTest(unittest.TestCase):
 		html = frappe.get_print("Sales Invoice", sale["name"], print_format="ENK Faktura")
 		self.assertIn("PO-4711", html)
 		self.assertIn("post@example.invalid", html)
+		documents.submit_document(sale["doctype"], sale["name"])
+		update_company_contact(self.company, dict(address_line="Kontorveien 3", postal_code="0150", city="Oslo", phone="40000000", email="ny@example.invalid"))
+		html = frappe.get_print("Sales Invoice", sale["name"], print_format="ENK Faktura")
+		self.assertIn("post@example.invalid", html)
 
 	def test_invoice_and_purchase_can_be_marked_paid_in_one_step(self):
 		customer = self.customer()

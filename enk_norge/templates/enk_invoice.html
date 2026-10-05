@@ -2,7 +2,7 @@
 {% set buyer = enk_invoice_buyer(doc) %}
 {% set registered = issuer.vat_registered %}
 {% set seller = issuer.company_name or doc.company %}
-{% set seller_email = frappe.db.get_value('Company', doc.company, 'email') %}
+{% set seller_email = issuer.email or frappe.db.get_value('Company', doc.company, 'email') %}
 {% set org = enk_format_number(issuer.organization_number, 'org') %}
 {% set account = enk_format_number(issuer.bank_account, 'account') %}
 {% set lines_text = doc.items | map(attribute='description') | join('\n') %}

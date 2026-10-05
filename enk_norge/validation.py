@@ -116,7 +116,11 @@ def validate_transaction(doc, method=None):
 						"phone",
 					)
 				}
-				| {"vat_registered": bool(issuer_registered), "company_name": doc.company}
+				| {
+					"vat_registered": bool(issuer_registered),
+					"company_name": doc.company,
+					"email": frappe.db.get_value("Company", doc.company, "email"),
+				}
 			)
 		if not registered and any(Decimal(str(t.tax_amount or 0)) != 0 for t in doc.taxes):
 			frappe.throw("Foretaket kan ikke fakturere med MVA før registreringen gjelder.")

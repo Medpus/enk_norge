@@ -96,6 +96,14 @@ enk_norge.first_run.slides = [
 				reqd: 1,
 			},
 			{
+				fieldname: "email",
+				label: __("E-post"),
+				fieldtype: "Data",
+				options: "Email",
+				description: __("Vises på fakturaen som kontaktadresse."),
+				reqd: 1,
+			},
+			{
 				fieldname: "bank_name",
 				label: __("Bankens navn"),
 				fieldtype: "Data",

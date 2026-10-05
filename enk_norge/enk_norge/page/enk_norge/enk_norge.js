@@ -1381,7 +1381,7 @@ class EnkNorgePage {
 				{ fieldname: "postal_code", label: __("Postnummer"), fieldtype: "Data", default: profile.postal_code, reqd: 1 },
 				{ fieldname: "city", label: __("Poststed"), fieldtype: "Data", default: profile.city, reqd: 1 },
 				{ fieldname: "phone", label: __("Telefon"), fieldtype: "Data", default: profile.phone, reqd: 1 },
-				{ fieldname: "email", label: __("E-post"), fieldtype: "Data", options: "Email", default: profile.email },
+				{ fieldname: "email", label: __("E-post"), fieldtype: "Data", options: "Email", default: profile.email, reqd: 1 },
 				{ fieldtype: "Section Break", label: __("MVA-registrering") },
 				{
 					fieldtype: "HTML",

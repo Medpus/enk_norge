@@ -287,6 +287,11 @@ def create_company(data):
 	abbr = data["abbr"].strip().upper()
 	if not re.fullmatch(r"[A-Z0-9]{2,5}", abbr):
 		frappe.throw("Forkortelsen må ha 2-5 bokstaver A-Z eller tall.")
+	email = (data.get("email") or "").strip()
+	if email:
+		from frappe.utils import validate_email_address
+
+		validate_email_address(email, throw=True)
 	frappe.flags.ignore_chart_of_accounts = True
 	try:
 		company = frappe.get_doc(
@@ -298,6 +303,7 @@ def create_company(data):
 				default_currency="NOK",
 				tax_id=data["organization_number"],
 				phone_no=data.get("phone"),
+				email=email or None,
 				enable_perpetual_inventory=0,
 			)
 		).insert()
