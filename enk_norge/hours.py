@@ -164,9 +164,10 @@ def invoice_hours(data):
 	address = billing_address(timesheet.customer)
 	if not address:
 		frappe.throw("Kunden mangler fakturaadresse. Legg til adressen på kunden først.")
+	# Rettighetene sjekkes før hours_item(), som kan opprette varen uten rettighetssjekk.
+	timesheet.check_permission("submit" if timesheet.docstatus == 0 else "read")
 	item = hours_item()
 	if timesheet.docstatus == 0:
-		timesheet.check_permission("submit")
 		timesheet.submit()
 	last_day = max(getdate(row.from_time) for row in timesheet.time_logs if row.is_billable)
 	return create_timesheet_invoice_draft(

@@ -77,7 +77,7 @@ class PrintingWorkflowTest(unittest.TestCase):
 			"enk_norge.printing.frappe.get_print",
 			return_value="<html><body><h1>Fiktiv ENK-faktura</h1></body></html>",
 		):
-			download_pdf("Sales Invoice", invoice.name)
+			download_pdf("Sales Invoice", invoice.name, "ENK Faktura")
 		self.assertEqual(frappe.local.response.type, "pdf")
 		self.assertEqual(frappe.local.response.filename, invoice.name + ".pdf")
 		self.assertTrue(frappe.local.response.filecontent.startswith(b"%PDF"))
@@ -97,7 +97,7 @@ class PrintingWorkflowTest(unittest.TestCase):
 		).insert()
 		frappe.set_user(user.name)
 		with self.assertRaises(frappe.PermissionError):
-			download_pdf("Sales Invoice", invoice.name)
+			download_pdf("Sales Invoice", invoice.name, "ENK Faktura")
 
 	def test_unset_origin_uses_core_download_method(self):
 		from enk_norge.printing import download_pdf
@@ -106,6 +106,29 @@ class PrintingWorkflowTest(unittest.TestCase):
 		self.set_origin(None)
 		with patch("enk_norge.printing._native_download_pdf") as native:
 			download_pdf("Sales Invoice", invoice.name)
+		native.assert_called_once()
+
+	def test_enk_path_locks_wkhtmltopdf_to_the_internal_origin(self):
+		from enk_norge.printing import download_pdf
+
+		invoice = self.sale()
+		self.set_origin("http://erpnext-frontend:8080")
+		with (
+			patch("enk_norge.printing.frappe.get_print", return_value="<html><body>x</body></html>"),
+			patch("enk_norge.printing.get_pdf", return_value=b"%PDF") as get_pdf,
+		):
+			download_pdf("Sales Invoice", invoice.name, "ENK Faktura")
+		options = get_pdf.call_args.args[1]
+		self.assertEqual(options["proxy"], "http://0.0.0.0:0")
+		self.assertEqual(options["bypass-proxy-for"], ["erpnext-frontend"])
+
+	def test_other_print_formats_use_core_download_method(self):
+		from enk_norge.printing import download_pdf
+
+		invoice = self.sale()
+		self.set_origin("http://erpnext-frontend:8080")
+		with patch("enk_norge.printing._native_download_pdf") as native:
+			download_pdf("Sales Invoice", invoice.name, "Standard")
 		native.assert_called_once()
 
 

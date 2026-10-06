@@ -21,6 +21,10 @@ velger, og kontoplan og kontoer for foretaket. Logg deretter inn med din egen br
 Kontroller tidligere fakturaer og regnskap før du bekrefter historikken. Eksisterende saldoer
 blir ikke hentet automatisk fra et annet system.
 
+Bruk ett site per eier. Kunder og leverandører deles mellom alle foretak på samme site, og
+regnskapsbrukere ser alle foretak med mindre en administrator begrenser dem med
+User Permission på Company.
+
 ## Slik er siden bygget opp
 
 Øverst står foretaket og MVA-statusen. «Foretak og MVA» viser grunnopplysningene og er

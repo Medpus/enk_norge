@@ -69,6 +69,19 @@ def rewrite_pdf_asset_urls(html, origin):
 	return str(soup)
 
 
+ENK_PRINT_FORMAT = "ENK Faktura"
+
+
+def _pdf_network_options(origin):
+	# Samme lås som Frappes report_to_pdf: wkhtmltopdf får bare nå den interne originen,
+	# så HTML i fakturaen ikke kan få serveren til å hente andre adresser.
+	return {
+		"proxy": "http://0.0.0.0:0",
+		"bypass-proxy-for": [urlsplit(origin).hostname],
+		"load-error-handling": "ignore",
+	}
+
+
 def _native_download_pdf(*args, **kwargs):
 	from frappe.utils.print_format import download_pdf as native_download_pdf
 
@@ -88,7 +101,7 @@ def download_pdf(
 	pdf_generator: str | None = None,
 ):
 	"""ENK-fakturaer kan hente statiske ressurser fra en intern, serverkonfigurert origin under PDF-rendering."""
-	if doctype != "Sales Invoice" or pdf_generator == "chrome":
+	if doctype != "Sales Invoice" or format != ENK_PRINT_FORMAT or pdf_generator == "chrome":
 		return _native_download_pdf(
 			doctype, name, format, doc, no_letterhead, language, letterhead, pdf_generator
 		)
@@ -114,7 +127,7 @@ def download_pdf(
 			no_letterhead=no_letterhead,
 			pdf_generator="wkhtmltopdf",
 		)
-		pdf_file = get_pdf(rewrite_pdf_asset_urls(html, origin))
+		pdf_file = get_pdf(rewrite_pdf_asset_urls(html, origin), _pdf_network_options(origin))
 	frappe.local.response.filename = "{name}.pdf".format(name=name.replace(" ", "-").replace("/", "-"))
 	frappe.local.response.filecontent = pdf_file
 	frappe.local.response.type = "pdf"

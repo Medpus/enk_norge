@@ -341,7 +341,7 @@ class EnkNorgePage {
 			freeze_message: __("Oppretter foretak"),
 			callback: (response) => {
 				const company = response.message?.company || this.wizard_data.company_name;
-				frappe.show_alert({ message: __("{0} er opprettet.", [company]), indicator: "green" });
+				frappe.show_alert({ message: __("{0} er opprettet.", [frappe.utils.escape_html(company)]), indicator: "green" });
 				this.load_companies();
 			},
 		});
@@ -1603,7 +1603,7 @@ class EnkNorgePage {
 				btn: dialog.get_primary_btn(),
 				callback: (response) => {
 					dialog.hide();
-					frappe.show_alert({ message: edit ? __("Kunden er oppdatert.") : __("{0} er opprettet.", [response.message.customer_name]), indicator: "green" });
+					frappe.show_alert({ message: edit ? __("Kunden er oppdatert.") : __("{0} er opprettet.", [frappe.utils.escape_html(response.message.customer_name)]), indicator: "green" });
 					on_created?.(response.message);
 				},
 			}),
@@ -1663,7 +1663,7 @@ class EnkNorgePage {
 				btn: dialog.get_primary_btn(),
 				callback: (response) => {
 					dialog.hide();
-					frappe.show_alert({ message: edit ? __("Leverandøren er oppdatert.") : __("{0} er opprettet.", [response.message.supplier_name]), indicator: "green" });
+					frappe.show_alert({ message: edit ? __("Leverandøren er oppdatert.") : __("{0} er opprettet.", [frappe.utils.escape_html(response.message.supplier_name)]), indicator: "green" });
 					on_created?.(response.message);
 				},
 			}),
