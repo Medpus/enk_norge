@@ -108,15 +108,14 @@
   <table class="totals">
     <tr><td style="width: 55%;"></td><td>
       <table>
-        {% if doc.taxes %}
         <tr><td>Sum eks. MVA</td><td class="val">{{ money(doc.net_total) }}</td></tr>
-        {% for tax in doc.taxes %}<tr><td>MVA {{ tax.rate | int }} %</td><td class="val">{{ money(tax.tax_amount) }}</td></tr>{% endfor %}
-        {% endif %}
+        {% for tax in doc.taxes %}<tr><td>MVA {{ tax.rate | int }} %</td><td class="val">{{ money(tax.tax_amount) }}</td></tr>{% else %}<tr><td>MVA</td><td class="val">{{ money(0) }}</td></tr>{% endfor %}
         <tr class="grand"><td>{{ 'Til gode' if doc.is_return else 'Å betale' }}</td><td class="val">{{ money(doc.grand_total) }}</td></tr>
       </table>
     </td></tr>
   </table>
 
+  {% if not registered %}<p class="note">Foretaket er ikke registrert i Merverdiavgiftsregisteret. Det er ikke beregnet merverdiavgift.</p>{% endif %}
   {% if doc.enk_tax_treatment == 'Export services' %}<p class="note">Fjernleverbar tjeneste til mottaker utenfor merverdiavgiftsområdet. Fritatt etter merverdiavgiftsloven § 6-22.</p>{% endif %}
   {% if doc.enk_tax_treatment == 'Exempt' %}<p class="note">Unntatt fra MVA: {{ doc.enk_tax_reason | e }}</p>{% endif %}
 </div>

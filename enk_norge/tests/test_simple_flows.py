@@ -314,7 +314,7 @@ class SimpleFlowsTest(unittest.TestCase):
 		html = frappe.get_print("Sales Invoice", draft["name"], print_format="ENK Faktura")
 		self.assertIn("Palli, modul for fraktbrev", html)
 		self.assertIn("Betalingsinformasjon", html)
-		self.assertNotIn("Merverdiavgiftsregisteret", html)
+		self.assertIn("Merverdiavgiftsregisteret", html)
 		self.assertEqual(enk_format_number("86011117947", "account"), "8601.11.17947")
 		self.assertEqual(enk_format_number("974761076", "org"), "974 761 076")
 		with self.assertRaises(frappe.ValidationError):
@@ -448,6 +448,8 @@ class SimpleFlowsTest(unittest.TestCase):
 		self.assertIn("PO-4711", html)
 		self.assertIn("NOK 100", html)
 		self.assertNotIn("kr ", html)
+		self.assertIn("Sum eks. MVA", html)
+		self.assertIn("ikke registrert i Merverdiavgiftsregisteret", html)
 		self.assertIn("post@example.invalid", html)
 		documents.submit_document(sale["doctype"], sale["name"])
 		update_company_contact(self.company, dict(address_line="Kontorveien 3", postal_code="0150", city="Oslo", phone="40000000", email="ny@example.invalid"))
