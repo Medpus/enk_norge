@@ -1,9 +1,13 @@
 #!/bin/bash
-# Daglig, selvstendig fullbackup av ERPNext på Tower.
+# Daglig, selvstendig fullbackup av en ERPNext-stack på serveren. Forutsetter en
+# frappe_docker-compose-stack der .env i ERPNEXT_DIR har SITE_NAME.
+# Miljøvariabler: ERPNEXT_DIR (standard /mnt/user/appdata/erpnext) og
+# ERPNEXT_BACKEND_CONTAINER (standard erpnext-backend).
 set -euo pipefail
 umask 077
 
-APPDATA=/mnt/user/appdata/erpnext
+APPDATA="${ERPNEXT_DIR:-/mnt/user/appdata/erpnext}"
+BACKEND_CONTAINER="${ERPNEXT_BACKEND_CONTAINER:-erpnext-backend}"
 ENVFILE="$APPDATA/.env"
 SITE_ROOT="$APPDATA/sites"
 ARCHIVE_ROOT="$APPDATA/enk-backups"
@@ -66,7 +70,7 @@ case "${1:-backup}" in
 	backup) ;;
 	*) die "Bruk: $0 [backup|status]" ;;
 esac
-docker ps --format '{{.Names}}' | grep -qx erpnext-backend || die "erpnext-backend kjører ikke."
+docker ps --format '{{.Names}}' | grep -qx "$BACKEND_CONTAINER" || die "$BACKEND_CONTAINER kjører ikke."
 
 stamp=$(date '+%Y%m%d_%H%M%S')
 tmp="$ARCHIVE_ROOT/.${stamp}.tmp"
@@ -77,7 +81,7 @@ mkdir "$tmp"
 touch "$marker"
 
 say "Starter full bench-backup for $SITE."
-docker exec erpnext-backend bench --site "$SITE" backup --with-files
+docker exec "$BACKEND_CONTAINER" bench --site "$SITE" backup --with-files
 
 mapfile -t databases < <(find "$SOURCE" -maxdepth 1 -type f -newer "$marker" -name '*-database.sql.gz' -printf '%f\n' | sort)
 [ "${#databases[@]}" = 1 ] || die "Fant ikke nøyaktig én ny databasebackup."

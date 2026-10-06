@@ -2,9 +2,9 @@
 
 Undersøkt 2026-09-17. Dette er et kildebasert beslutningsgrunnlag for utviklingen, ikke en
 bekreftelse på at dagens installasjon oppfyller kravene. Modulen skal kunne brukes av
-norske ENK generelt. Første brukstilfelle er et opprettet ENK som skal selge
-konsulenttjenester til bedrifter og privatpersoner, samt SaaS. Kundeland, MVA-status og
-eksisterende regnskap er ikke avklart. Bransjespesifikke plikter må avgrenses før reell bruk.
+norske ENK generelt. De første brukstilfellene er ENK som selger konsulenttjenester til
+bedrifter og privatpersoner, samt SaaS. Kundeland, MVA-status og eksisterende regnskap
+varierer mellom foretak. Bransjespesifikke plikter må avgrenses før reell bruk.
 
 Den anbefalte løsningen er å bruke ERPNext til bokføringen og utvikle norske regler,
 kontroller og en enklere arbeidsflyt i enk_norge. Direkte innsending til myndighetene er
@@ -303,7 +303,7 @@ materiale skal sikkerhetskopieres, og rutinen må beskrive hva som kopieres, hvo
 oppbevares og hvor ofte. Utenlandsk oppbevaring har særskilte regler.
 [Altinn: Oppbevaring av regnskapsmateriale](https://info.altinn.no/starte-og-drive/regnskap-og-revisjon/regnskap/oppbevaring-av-regnskapsmateriale)
 
-For Tower betyr dette at databasebackup alene ikke er nok. Vedlegg, innsendingskvitteringer
+For en egen server betyr dette at databasebackup alene ikke er nok. Vedlegg, innsendingskvitteringer
 og lesbare eksportfiler må følge med. Gjenoppretting må testes. En backup på samme disk
 gir ikke tilstrekkelig beskyttelse mot tap av maskinen; en separat kopi anbefales.
 

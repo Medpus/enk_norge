@@ -1,6 +1,6 @@
 [Unit]
-Description=Kryptert offsite-kopi av ERPNext-backup fra Tower
+Description=Kryptert offsite-kopi av ERPNext-backup fra serveren
 
 [Service]
 Type=oneshot
-ExecStart=%h/frappe-dev/development/frappe-bench/apps/enk_norge/scripts/pull_tower_erpnext_backup.sh
+ExecStart=%h/frappe-dev/development/frappe-bench/apps/enk_norge/scripts/pull_backup.sh

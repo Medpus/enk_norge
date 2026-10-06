@@ -38,8 +38,7 @@ vedlegg, kontroll og bokføring. Brukeren skal ikke trenge ERPNexts skjemaer. Fo
 ## Evidence on Hand
 
 Produktplanen ligger i `docs/enk-produktplan.md`. Fiktive, isolerte testflyter er dokumentert i
-[implementering.md](docs/implementering.md). Produksjon har fortsatt ingen reelle Company-er eller
-bilag.
+[implementering.md](docs/implementering.md).
 
 ## Product Principles
 

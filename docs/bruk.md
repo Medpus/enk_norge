@@ -9,8 +9,9 @@ liten lenke «Åpne i ERPNext» nederst, for de sjeldne tilfellene der det treng
 
 ## Foretaksoppsett
 
-På Tower åpner du `https://erp.example.com`, fullfører Cloudflare Access og logger inn
-med den klargjorte Administrator-kontoen. Cloudflare Access og ERPNext har hver sin innlogging.
+Åpne sitet og logg inn med Administrator-kontoen som ble laget da sitet ble opprettet. Står
+sitet bak en innloggingsproxy, for eksempel Cloudflare Access, har den og ERPNext hver sin
+innlogging.
 
 Ved første innlogging starter ENK-veiviseren. Oppgi din egen bruker, foretaket,
 organisasjonsnummer, adresse, bank og datoen regnskapet starter. Bekreft MVA-status og

@@ -9,9 +9,9 @@ Målet er at en ENK-innehaver skal kunne registrere et kjøp, fakturere en kunde
 avslutte året uten å måtte kunne ERPNexts interne begreper. Regnskapet skal samtidig være
 sporbart og kunne kontrolleres. En enkel flate må bygge på korrekt bokføring.
 
-Modulen skal være gjenbrukbar for norske ENK. Første bruker har opprettet ENK for
-konsulenttjenester til bedrifter, familie og venner, samt SaaS-prosjekter.
-Disse brukes som prøvetilfeller, ikke som hardkodede valg. Foretak, eier, bank,
+Modulen skal være gjenbrukbar for norske ENK. De første brukstilfellene er konsulenttjenester
+til bedrifter og privatpersoner og salg av SaaS-abonnement. Disse brukes som prøvetilfeller,
+ikke som hardkodede valg. Foretak, eier, bank,
 registreringer og produkter er konfigurasjon per Company. Felles regler og tester skal
 fungere med flere fiktive foretak uten at data eller avgiftsstatus blandes.
 
@@ -289,7 +289,7 @@ avstemmes. Før deploy kjøres relevante tester og `bench migrate` i dev som bes
 
 ## Omfang, kostnad og åpne valg
 
-Min vurdering er at en enkel ENK-flate er gjennomførbar over ERPNext. Å erstatte hele
+Vurderingen er at en enkel ENK-flate er gjennomførbar over ERPNext. Å erstatte hele
 Fikens norske rapporterings- og integrasjonsansvar er et vesentlig større prosjekt.
 Det krever løpende regelverksarbeid selv om programvaren driftes på egen server.
 
@@ -298,8 +298,8 @@ gir mest mening dersom kontroll over data, egne arbeidsflyter og videre utvidels
 viktige nok til å forsvare vedlikeholdet. Første beslutningspunkt er en demonstrert
 bokføringsflyt og et komplett prøveår, med kjent vei til levering av skattemeldingen.
 
-Konsulenttjenester og SaaS er avklart som første brukstilfeller. Følgende er fortsatt
-uavklart: MVA-status, kundeland, bank/oppgjørstjenester, første regnskapsår, tidligere bilag,
+Konsulenttjenester og SaaS er de første brukstilfellene. For hvert foretak må dette
+avklares: MVA-status, kundeland, bank/oppgjørstjenester, første regnskapsår, tidligere bilag,
 eiendeler, private andeler og behov for ansatte eller varer. Et tidsestimat og automatiske
 skatteregler krever at dette avgrenses. Disse avklaringene styrer første konfigurasjon og
 testutvalg, ikke om regelverket skal kunne gjenbrukes av andre ENK.

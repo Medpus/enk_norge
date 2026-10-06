@@ -1,11 +1,12 @@
 name: Bygg og publiser ERPNext-image med enk_norge
 
 # Bygger et komplett ERPNext-bench-image (frappe + erpnext + denne appen) og pusher
-# til GHCR. Tower PULLER imaget — ingenting bygges på serveren.
+# til GHCR under ghcr.io/<eier>/erpnext-enk. Serveren PULLER imaget — ingenting
+# bygges der.
 #
-# Merk: dette er IKKE et auto-deploy. Watchtower er bevisst skrudd av for ERPNext,
-# fordi et nytt image alltid må følges av `bench migrate` mot databasen.
-# Utrulling skjer med hosts/tower/scripts/erpnext-deploy.sh i janitor-repoet.
+# Merk: dette er IKKE et auto-deploy. Et nytt image må alltid følges av
+# `bench migrate` mot databasen, så utrulling skjer bevisst og ikke via automatisk
+# oppdatering av containere. Se docs/deploy.md.
 
 on:
   push:
@@ -13,7 +14,6 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/medpus/erpnext-enk
   # Kildetaggen og committen er bevisst låst til versjonene som er testet lokalt.
   # Denne verdien brukes også som tagg for Frappe Docker sine offisielle build/base-images.
   FRAPPE_REF: v16.34.0
@@ -99,6 +99,9 @@ jobs:
           path: frappe_docker
           persist-credentials: false
 
+      - name: Sett image-navn fra repoeieren
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/erpnext-enk" >> "$GITHUB_ENV"
+
       - name: Sett opp Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -123,17 +126,19 @@ jobs:
           verify_tag https://github.com/frappe/frappe.git "$FRAPPE_REF" "$FRAPPE_SHA"
           verify_tag https://github.com/frappe/erpnext.git "$ERPNEXT_REF" "$ERPNEXT_SHA"
 
-          app_url="https://github.com/${GITHUB_REPOSITORY}"
-          jq -e --arg app_url "$app_url" --arg erpnext_ref "$ERPNEXT_REF" '
+          # Nøyaktig én ERPNext-oppføring og nøyaktig én enk_norge-oppføring (hvilken som
+          # helst eier, slik at en fork kan bygge uten å endre apps.json). Den siste
+          # erstattes med repoet som bygger.
+          jq -e --arg erpnext_ref "$ERPNEXT_REF" '
             length == 2 and
             ([.[] | select(.url == "https://github.com/frappe/erpnext" and .branch == $erpnext_ref)] | length == 1) and
-            ([.[] | select(.url == $app_url and .branch == "main")] | length == 1)
+            ([.[] | select((.url | test("^https://github\\.com/[^/]+/enk_norge$")) and .branch == "main")] | length == 1)
           ' apps.json > /dev/null
 
           private_app_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           umask 077
-          jq --arg app_url "$app_url" --arg private_app_url "$private_app_url" '
-            map(if .url == $app_url then .url = $private_app_url else . end)
+          jq --arg private_app_url "$private_app_url" '
+            map(if (.url | test("^https://github\\.com/[^/]+/enk_norge$")) then .url = $private_app_url else . end)
           ' apps.json > "$RUNNER_TEMP/apps.build.json"
 
           python3 - <<'PY'
@@ -204,5 +209,5 @@ jobs:
             docker run --rm --entrypoint bash "$image" \
               -c 'cd /home/frappe/frappe-bench && bench version'
             echo '```'
-            echo 'Første deploy fra offisielt image: `bash ~/git/janitor/hosts/tower/scripts/erpnext-deploy.sh v16-'"${GITHUB_SHA}"' ghcr.io/medpus/erpnext-enk`'
+            echo 'Deploy er et bevisst steg, ikke automatisk. Se docs/deploy.md.'
           } >> "$GITHUB_STEP_SUMMARY"

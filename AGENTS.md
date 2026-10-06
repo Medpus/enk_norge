@@ -1,10 +1,10 @@
 # enk_norge: driftsmanual for agenter
 
-Gjenbrukbar norsk ERPNext-tilpasning for enkeltpersonforetak. Konsulentvirksomhet
-og SaaS-prosjekter er de første brukstilfellene. Les denne fila først.
-Maskinparken og de større driftsrutinene ligger i **janitor**-repoet
-(`~/git/janitor`), særlig `hosts/tower/fixes/enk-norge-app-og-byggekjede.md`,
-som forklarer hvorfor dette repoet ser ut som det gjør.
+Gjenbrukbar norsk ERPNext-tilpasning for enkeltpersonforetak. Konsulenttjenester og SaaS er de
+første brukstilfellene. Les denne fila først.
+
+Finnes `AGENTS.local.md` i rotmappa, les den også. Den er gitignorert og beskriver den lokale
+maskinen og eierens egen drift. Det som står der, skal aldri inn i versjonerte filer.
 
 ## Grunnregelen, som aldri brytes
 
@@ -25,42 +25,39 @@ Ser du deg selv i ferd med å redigere i `apps/erpnext/`: stopp, og finn hooken 
 
 ## Utviklingsmiljø
 
-Kjøres på **devmaskin**, aldri på Tower. Tower er deploy-mål. Nobara bruker rootless
-Podman. `podman-compose` installeres med `uv tool install podman-compose` (for tiden 1.6.0).
+Dev-miljøet er MariaDB, Redis og en frappe-bench i containere, med Docker eller rootless Podman.
+Skriptene ligger i appen:
 
 ```bash
-bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev-setup.sh   # ved behov
-bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh start   # daglig
+bash scripts/dev-setup.sh   # én gang, og ved behov; idempotent
+bash scripts/dev.sh start   # daglig
 ```
 
-Oppsettsskriptet ligger i janitor-repoet. Miljøet er MariaDB, Redis og en frappe-bench i rootless
-containere. Arbeidskopien benchen bruker er
-`~/frappe-dev/development/frappe-bench/apps/enk_norge`. Det finnes også en separat inngangsklone
-for dokumentasjon og koordinering. Før kodeendringer skal agenten bytte til bench-kopien, sjekke
-git-status og bevare eller sammenligne ucommittert arbeid. Ikke kopier, reset eller overskriv
-endringer automatisk.
+Oppsettet lager `~/frappe-dev/` og kloner appen til
+`~/frappe-dev/development/frappe-bench/apps/enk_norge`. Den klonen er arbeidskopien benchen
+bruker. Før kodeendringer: sjekk `git status` der og bevar ucommittert arbeid. Ikke kopier,
+reset eller overskriv endringer automatisk.
 
-Port 8000 brukes av et annet program. I `~/frappe-dev/.env` er derfor `ENK_DEV_HTTP_PORT=8001` satt,
-slik at URL-en normalt er `http://dev.localhost:8001` (Administrator / admin). Scriptet har
-8000 som standard og skriver faktisk port i `start` og `status`. Tjenesten skal bare lytte på
-localhost.
+URL-en er normalt `http://dev.localhost:8000` (Administrator / admin). Er porten opptatt, sett
+`ENK_DEV_HTTP_PORT` i `~/frappe-dev/.env`. `dev.sh start` og `dev.sh status` skriver faktisk
+port. Tjenesten skal bare lytte på localhost.
 
-Daglige kommandoer bruker den absolutte scriptstien, med mindre du selv lager en shell-funksjon:
-`start`, `stop`, `status`, `logs`, `shell`, `bench <args>`, `migrate`, `console` og `fixtures`.
-Se [docs/utvikling.md](docs/utvikling.md) for rutinen og kontrollkommandoene.
+Daglige kommandoer: `start`, `stop`, `status`, `logs`, `shell`, `bench <args>`, `migrate`,
+`console` og `fixtures`. Se [docs/utvikling.md](docs/utvikling.md) for rutinen og
+kontrollkommandoene.
 
-Produksjonsdatabasen på Tower røres aldri herfra.
+Produksjonsdatabaser røres aldri fra dev-miljøet.
 
 ## Arbeidsflyten
 
 ```
 les instruks og sjekk status  →  rediger i bench/apps/enk_norge  →  test på dev.localhost
    →  bench migrate i dev  →  commit + push til main  →  CI bygger image
-      →  bevisst deploy på Tower
+      →  bevisst deploy til produksjon
 ```
 
 `bench migrate` i dev **før** deploy er ikke valgfritt. Det er der en ERPNext-oppgradering som
-brekker appen vår skal avsløres før deploy, ikke på Tower.
+brekker appen vår skal avsløres, ikke i produksjon.
 
 ### Tilpasninger som lages ved å klikke
 
@@ -70,8 +67,7 @@ finnes da **bare i dev-databasen** og forsvinner ved gjenoppbygging. Riktig løk
 1. Klikk det på plass i dev-sitet.
 2. Legg doctypen inn under `fixtures` i `enk_norge/hooks.py`, med filtre når bare et avgrenset
    utvalg skal eksporteres.
-3. Kjør `bash ~/git/janitor/hosts/devmaskin/scripts/enk-dev.sh fixtures`. De skrives som
-   JSON inn i appen.
+3. Kjør `bash scripts/dev.sh fixtures`. De skrives som JSON inn i appen.
 4. Commit dem. Nå følger de med imaget og legges inn av `bench migrate` i produksjon.
 
 ### Migrasjoner
@@ -81,26 +77,15 @@ Endringer som må kjøres mot eksisterende data hører i `enk_norge/patches.txt`
 i vurderinger en språkmodell gjør der og da. Det er hele poenget med at dette er et program og
 ikke en samtale.
 
-### Arbeid mot Tower
-
-Når en oppgave faktisk krever tilgang til Tower, bruk en native subagent med SSH og koordinér
-kommandoene og resultatet tilbake hit. Oppgi vert, arbeidsmappe og avgrensning tydelig. Dev-arbeid
-og tester kjøres fortsatt på Nobara.
-
 ## Deploy
 
-```bash
-# på Tower
-bash ~/git/janitor/hosts/tower/scripts/erpnext-deploy.sh v16-<sha>
-```
+CI bygger `ghcr.io/<eier>/erpnext-enk:v16-<sha>` ved push til `main`. Utrulling er et bevisst
+steg: backup, bytt image, installer manglende apper, `bench migrate`, verifiser. Se
+[deploy-veiledningen](docs/deploy.md).
 
-Scriptet tar backup, bytter image, installerer nye apper, kjører `bench migrate` og verifiserer.
-Hvis scriptet bare finnes i den lokale janitor-klonen, følg SSH-flyten i
-[deploy-veiledningen](docs/deploy.md). Ikke opprett en janitor-klone på Tower for dette.
-
-**ERPNext-stacken har bevisst ingen Watchtower-label.** De andre appene auto-oppdateres;
-denne gjør det ikke, fordi et nytt image alltid må følges av `bench migrate`. Ikke legg på
-labelen «for konsistens».
+**Produksjonsstacken skal ikke ha automatisk image-oppdatering** (for eksempel Watchtower).
+Et nytt image må alltid følges av `bench migrate`. Ikke legg det på «for konsistens» med andre
+tjenester.
 
 ## Feller som allerede har bitt oss
 
@@ -110,8 +95,8 @@ labelen «for konsistens».
 - `bench get-app` kaller remoten `upstream` og klemmer historikken med `--depth 1`. Vi kloner
   selv for å få en normal `origin`.
 - Rootless Podman bruker `userns_mode: keep-id:uid=1000,gid=1000` for å gi containerprosessen
-  riktig uid og gid på host-filer. `:z` er en separat SELinux-merking for mounts. Nobara har
-  SELinux Disabled, så den er ikke nødvendig der.
+  riktig uid og gid på host-filer. `:z` er en separat SELinux-merking for mounts og trengs bare
+  der SELinux er på.
 - En `~/.ssh`-mount inn i bench-containeren hjelper ikke: containeren kjører som uid 1000 og får
   ikke lest nøkler som eies av en annen bruker. Git-operasjoner gjøres fra verten.
 - `bench new-site` skrur **av** scheduleren. I produksjon må den skrus på igjen.
@@ -145,17 +130,21 @@ labelen «for konsistens».
   forfallsdatoen fra den gamle betalingsplanen og ignorerer den nye.
 - Fakturamalen kjører inne i Frappes utskrifts-CSS, som har Bootstrap. Klassenavn som `label`
   og `table` får da Bootstraps stil. Bruk egne navn som `lbl` og `val` i malen.
-- Cloudflare Access sperrer også serverens offentlige CSS-kall under PDF-generering.
-  ENK-fakturaens nedlasting bruker site-innstillingen `enk_pdf_asset_origin` for interne
-  statiske ressurser. Se deploy-veiledningen. Ikke sett offentlig `host_name` til en intern URL.
+- En innloggingsproxy foran sitet, for eksempel Cloudflare Access, sperrer også serverens egne
+  CSS-kall under PDF-generering. ENK-fakturaens nedlasting bruker site-innstillingen
+  `enk_pdf_asset_origin` for interne statiske ressurser. Se deploy-veiledningen. Ikke sett
+  offentlig `host_name` til en intern URL.
 
 ## Konvensjoner
 
 - **Norsk** i dokumentasjon, commit-meldinger og kommentarer. Kode, DocType-navn og felt på
   engelsk der Frappe forventer det.
 - Datoer absolutte (YYYY-MM-DD).
-- Git-identitet: `85625055+Medpus@users.noreply.github.com`. **Aldri** jobb-adressen.
-- Varige lærdommer om denne appen dokumenteres her. Ikke skriv i janitor-repoet.
+- Varige lærdommer om denne appen dokumenteres her. Maskin-, vert- og driftsdetaljer for en
+  bestemt installasjon hører ikke hjemme i repoet; de står i `AGENTS.local.md` eller i eierens
+  egne driftsnotater.
+- Bruk fiktive navn, organisasjonsnumre, kontonumre og kontaktopplysninger i tester og
+  eksempler, aldri ekte foretaksdata.
 
 ## Norske regnskapsfunksjoner
 

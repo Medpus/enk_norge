@@ -65,8 +65,8 @@ av til hele kroner. Oversikten viser inntekter og kostnader per måned, kostnade
 klikkbare tall, MVA-grensen siste 12 måneder og forfalte fakturaer. Kunder, leverandører og
 foretakets kontaktinformasjon kan rettes.
 
-Tower har daglig fullbackup og Nobara mottar en kryptert kopi. Begge kjøringene er
-prøvd. Se [backup og gjenoppretting](backup.md) for tidspunkt, bevaring og nøkkelbehov.
+Daglig fullbackup på serveren og kryptert kopi til en annen maskin er tatt i bruk på en
+reell installasjon, og begge kjøringene er prøvd. Se [backup og gjenoppretting](backup.md) for tidspunkt, bevaring og nøkkelbehov.
 Gjenoppretting i produksjon er ikke brukt som test.
 
 Sluttkontroll lokalt:
@@ -83,7 +83,7 @@ Sluttkontroll lokalt:
 
 PDF-nedlastingen er også prøvd via ERPNexts HTTP-endepunkt med en bokført, fiktiv faktura.
 Den ga HTTP 200 og én A4-side. Visuell kontroll bekreftet stilfiler, tabell, datoer og
-beløpet `kr 1.500,00`. Testen bruker intern ressursadresse slik produksjon trenger bak Access.
+beløpet `kr 1.500,00`. Testen bruker intern ressursadresse slik et site bak en innloggingsproxy trenger.
 
 Saldogruppedialogen er også kjørt mot backend i nettleseren: et fiktivt aktivert kjøp på
 1 200 kroner ga en saldogruppe med riktig kildebilag og 360 kroner i avskrivning.
@@ -91,40 +91,24 @@ Saldogruppedialogen er også kjørt mot backend i nettleseren: et fiktivt aktive
 360 kroner. Driftsmiddelavgang er integrasjonstestet i backend; dialogen er kontrollert
 visuelt, men det er ikke opprettet avgang gjennom nettleseren.
 
-[CI-kjøring 35282575671](https://github.com/Medpus/enk_norge/actions/runs/35282575671)
-besto for `54b4f98a4a5f19301b9698765f49c9936f2baaf8`. Den kjørte de rene testene,
-kontrollerte wheel-innholdet, bygget og publiserte imaget, og verifiserte alle tre
-kildecommittene i det nedlastede imaget.
+CI kjører ved hver push til `main` de rene testene, kontrollerer wheel-innholdet, bygger og
+publiserer imaget og verifiserer alle tre kildecommittene i det nedlastede imaget.
 
 ## Produksjon
 
-Verifisert på Tower 2026-09-18: alle seks appcontainere kjører
-`ghcr.io/medpus/erpnext-enk:v16-54b4f98a4a5f19301b9698765f49c9936f2baaf8`.
-Installerte versjoner er Frappe 16.34.0, ERPNext 16.35.0 og ENK Norge 0.1.0.
-Migreringen besto, intern ping ga HTTP 200, og scheduleren hadde to workers.
-Offentlig URL ga HTTP 302 til Cloudflare Access med `www-authenticate`.
-
-Full backup før utrulling har prefikset `20260918_041453-erp_example_com` i
-sitets `private/backups/`: database, offentlige og private filer samt site-konfigurasjon.
-Tidsstempelet er backupens faktiske filnavn, ikke en angivelse av norsk lokaltid.
-
-PDF-konfigurasjonen bruker `http://erpnext-frontend:8080` for statiske ressurser.
-En utskrift av DocType-metadata hentet intern CSS med HTTP 200 og ga en PDF på
-41 217 byte. Siden ble rendret og kontrollert visuelt med stil, tabeller og sidefot.
-Dette prøver ressursveien i produksjon; selve fakturanedlastingen er prøvd på testsite.
-Det er ikke opprettet testforetak eller bilag i produksjon.
-
-Administrator-kontoen er aktiv, og ENK-siden og veiviserens filer er installert.
-Company, Sales Invoice, Purchase Invoice og Journal Entry hadde alle null poster etter
-kontrollen. Brukeren fullfører oppsettet selv etter [bruksveiledningen](bruk.md).
+Versjon 0.1.0 ble tatt i produksjon 2026-09-18 med Frappe 16.34.0 og ERPNext 16.35.0.
+Migreringen besto, sitet og API-et svarte, og scheduleren kjørte. PDF-ressursveien bak en
+innloggingsproxy ble prøvd der med intern CSS og visuell kontroll. Det ble ikke opprettet
+testforetak eller bilag i produksjon; eieren fullfører oppsettet selv etter
+[bruksveiledningen](bruk.md).
 
 ## Avgrensninger
 
 - Skattemelding og MVA-melding leveres manuelt. Appen gir grunnlag og lagrer kvittering;
   den har ingen verifisert direkteinnsending til Skatteetaten.
 - Bankkobling og EHF krever egne integrasjoner. Bankimporten bruker et eget dokumentert
-  CSV-format, ikke en norsk banks eksportformat. Import fra en norsk bank venter på en
-  eksempelfil fra banken. Bankavstemming skjer fortsatt i ERPNexts eget verktøy.
+  CSV-format, ikke en norsk banks eksportformat. Import fra bankenes egne
+  eksportformater er ikke laget. Bankavstemming skjer fortsatt i ERPNexts eget verktøy.
 - Salg gjennom Stripe forutsetter en bokført faktura per salg. Mange små abonnementssalg
   direkte til forbrukere er ikke tilpasset ennå.
 - Lønn, varelager, kassasalg, særnæringer og salg av digitale tjenester til utenlandske
