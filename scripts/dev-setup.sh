@@ -53,6 +53,14 @@ fi
 mkdir -p "$WORK/development"
 cd "$WORK"
 
+# Porter gitt til oppsettet lagres i .env, som compose leser, så dev.sh bruker dem senere.
+for var in ENK_DEV_HTTP_PORT ENK_DEV_SOCKETIO_PORT; do
+  [ -n "${!var:-}" ] || continue
+  touch .env
+  if grep -q "^$var=" .env; then sed -i "s/^$var=.*/$var=${!var}/" .env
+  else echo "$var=${!var}" >> .env; fi
+done
+
 # --- compose ----------------------------------------------------------------
 say "Skriver $WORK/compose.yml"
 cat > compose.yml <<'YAML'

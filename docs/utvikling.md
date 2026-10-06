@@ -31,8 +31,13 @@ Første kjøring tar 10 til 20 minutter og laster ned noen GB.
 | `ENK_DEV_HTTP_PORT` | `8000` | Webport på localhost |
 | `ENK_DEV_SOCKETIO_PORT` | `9000` | Socket.IO-port på localhost |
 
-Portene kan også settes i `~/frappe-dev/.env`, som compose leser automatisk. Er port 8000 opptatt
-av noe annet, legg for eksempel `ENK_DEV_HTTP_PORT=8001` der.
+Porter som gis til oppsettet, lagres i `~/frappe-dev/.env`, som compose leser automatisk. Du kan
+også redigere dem der. Er port 8000 opptatt av noe annet, kjør for eksempel
+`ENK_DEV_HTTP_PORT=8001 bash scripts/dev-setup.sh`.
+
+Dev-oppsettet henter siste utgave av Frappes og ERPNexts `version-16`-grener. Imaget CI bygger, er
+låst til bestemte versjoner (se [deploy](deploy.md)). Kjør `bench migrate` og testene i dev før en
+oppgradering av pinnene.
 
 Slår ikke `dev.localhost` opp, legg den i hosts-fila:
 
